@@ -40,12 +40,15 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 
 	// Repositories
 	authRepo := repository.NewAuthRepository(db)
+	walletRepo := repository.NewWalletRepository(db)
 
 	// Usecases
 	authUC := usecase.NewAuthUsecase(authRepo, jwtManager)
+	walletUC := usecase.NewWalletUsecase(walletRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
+	walletHandler := handler.NewWalletHandler(walletUC)
 
 	// Routes
 	api := r.Group("/api/v1")
@@ -57,6 +60,13 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.POST("/logout", authHandler.Logout)
 			auth.GET("/me", authMiddleware.RequireAuth(), authHandler.Me)
+		}
+
+		wallet := api.Group("/wallet", authMiddleware.RequireAuth())
+		{
+			wallet.POST("/create", walletHandler.Create)
+			wallet.GET("/balance", walletHandler.GetBalance)
+			wallet.POST("/deposit", walletHandler.MockDeposit)
 		}
 	}
 
