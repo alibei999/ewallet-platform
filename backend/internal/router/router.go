@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"github.com/alibei999/ewallet-backend/internal/config"
 	"github.com/alibei999/ewallet-backend/internal/handler"
 	"github.com/alibei999/ewallet-backend/internal/middleware"
 	"github.com/alibei999/ewallet-backend/internal/repository"
 	"github.com/alibei999/ewallet-backend/internal/usecase"
 	jwtpkg "github.com/alibei999/ewallet-backend/pkg/jwt"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
@@ -41,14 +41,17 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	// Repositories
 	authRepo := repository.NewAuthRepository(db)
 	walletRepo := repository.NewWalletRepository(db)
+	transactionRepo := repository.NewTransactionRepository(db)
 
 	// Usecases
 	authUC := usecase.NewAuthUsecase(authRepo, jwtManager)
 	walletUC := usecase.NewWalletUsecase(walletRepo)
+	transferUC := usecase.NewTransferUsecase(walletRepo, authRepo, transactionRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
 	walletHandler := handler.NewWalletHandler(walletUC)
+	transferHandler := handler.NewTransferHandler(transferUC)
 
 	// Routes
 	api := r.Group("/api/v1")
@@ -67,6 +70,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 			wallet.POST("/create", walletHandler.Create)
 			wallet.GET("/balance", walletHandler.GetBalance)
 			wallet.POST("/deposit", walletHandler.MockDeposit)
+			wallet.POST("/transfer", transferHandler.Transfer)
 		}
 	}
 
