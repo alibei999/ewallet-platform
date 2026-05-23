@@ -50,6 +50,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	transferUC := usecase.NewTransferUsecase(walletRepo, authRepo, transactionRepo)
 	kycUC := usecase.NewKYCUsecase(kycRepo, authRepo)
 	depositUC := usecase.NewDepositUsecase(walletRepo, transactionRepo, kycRepo)
+	txUC := usecase.NewTransactionUsecase(transactionRepo, walletRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
@@ -57,6 +58,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	transferHandler := handler.NewTransferHandler(transferUC)
 	kycHandler := handler.NewKYCHandler(kycUC)
 	depositHandler := handler.NewDepositHandler(depositUC)
+	txHandler := handler.NewTransactionHandler(txUC)
 
 	// Routes
 	api := r.Group("/api/v1")
@@ -79,6 +81,13 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 			wallet.POST("/deposit", depositHandler.Deposit)
 			wallet.POST("/withdraw", depositHandler.Withdraw)
 			wallet.POST("/transfer", transferHandler.Transfer)
+		}
+
+		// Transaction routes
+		transactions := api.Group("/transactions", authMiddleware.RequireAuth())
+		{
+			transactions.GET("",    txHandler.GetHistory)
+			transactions.GET("/:id", txHandler.GetByID)
 		}
 
 		// KYC routes (user)

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/alibei999/ewallet-backend/internal/domain"
 	"github.com/google/uuid"
@@ -151,4 +152,84 @@ func (r *TransactionRepository) CreateWithDB(t *domain.Transaction) error {
 	}
 
 	return r.db.QueryRow(`SELECT created_at FROM transactions WHERE id = $1`, t.ID).Scan(&t.CreatedAt)
+}
+
+// GetByUserWallet — транзакции пользователя с фильтрами и пагинацией
+func (r *TransactionRepository) GetByUserWallet(
+	walletID uuid.UUID,
+	txType string,
+	status string,
+	limit int,
+	offset int,
+) ([]domain.Transaction, int, error) {
+	query := `
+		SELECT id, wallet_id, counterpart_wallet_id, type, status,
+		       amount, fee, currency, description, reference_id, created_at, updated_at
+		FROM transactions
+		WHERE wallet_id = $1
+	`
+	countQuery := `SELECT COUNT(*) FROM transactions WHERE wallet_id = $1`
+	args := []interface{}{walletID}
+	argIdx := 2
+
+	if txType != "" {
+		query += fmt.Sprintf(" AND type = $%d", argIdx)
+		countQuery += fmt.Sprintf(" AND type = $%d", argIdx)
+		args = append(args, txType)
+		argIdx++
+	}
+	if status != "" {
+		query += fmt.Sprintf(" AND status = $%d", argIdx)
+		countQuery += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, status)
+		argIdx++
+	}
+
+	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	var total int
+	if err := r.db.QueryRow(countQuery, args[:argIdx-1]...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var txs []domain.Transaction
+	for rows.Next() {
+		var t domain.Transaction
+		if err := rows.Scan(
+			&t.ID, &t.WalletID, &t.CounterpartWalletID,
+			&t.Type, &t.Status, &t.Amount, &t.Fee,
+			&t.Currency, &t.Description, &t.ReferenceID,
+			&t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		txs = append(txs, t)
+	}
+	return txs, total, nil
+}
+
+// GetByID — одна транзакция по ID
+func (r *TransactionRepository) GetByID(id uuid.UUID) (*domain.Transaction, error) {
+	t := &domain.Transaction{}
+	err := r.db.QueryRow(`
+		SELECT id, wallet_id, counterpart_wallet_id, type, status,
+		       amount, fee, currency, description, reference_id, created_at, updated_at
+		FROM transactions WHERE id = $1
+	`, id).Scan(
+		&t.ID, &t.WalletID, &t.CounterpartWalletID,
+		&t.Type, &t.Status, &t.Amount, &t.Fee,
+		&t.Currency, &t.Description, &t.ReferenceID,
+		&t.CreatedAt, &t.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return t, err
 }

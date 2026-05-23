@@ -24,3 +24,10 @@ type TransactionResponse struct {
 	CounterpartWalletID string          `json:"counterpart_wallet_id,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 }
+
+type TransactionListResponse struct {
+	Total  int                   `json:"total"`
+	Limit  int                   `json:"limit"`
+	Offset int                   `json:"offset"`
+	Items  []TransactionResponse `json:"items"`
+}
