@@ -127,3 +127,28 @@ func (r *TransactionRepository) GetTransactionsByWalletID(walletID uuid.UUID) ([
 	}
 	return txs, nil
 }
+
+// CreateWithDB — creates transaction without external sql.Tx (for deposit/withdraw)
+func (r *TransactionRepository) CreateWithDB(t *domain.Transaction) error {
+	_, err := r.db.Exec(`
+		INSERT INTO transactions 
+			(id, wallet_id, counterpart_wallet_id, type, status, amount, fee, currency, description, reference_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`,
+		t.ID,
+		t.WalletID,
+		t.CounterpartWalletID,
+		string(t.Type),
+		string(t.Status),
+		t.Amount,
+		t.Fee,
+		string(t.Currency),
+		t.Description,
+		t.ReferenceID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return r.db.QueryRow(`SELECT created_at FROM transactions WHERE id = $1`, t.ID).Scan(&t.CreatedAt)
+}

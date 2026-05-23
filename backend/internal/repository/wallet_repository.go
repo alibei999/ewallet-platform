@@ -122,3 +122,40 @@ func (r *WalletRepository) UpdateBalance(tx *sql.Tx, walletID uuid.UUID, currenc
 func (r *WalletRepository) GetDB() *sql.DB {
 	return r.db
 }
+
+// AddBalance — adds amount to wallet balance (used in deposit)
+func (r *WalletRepository) AddBalance(walletID uuid.UUID, currency domain.Currency, amount decimal.Decimal) error {
+	_, err := r.db.Exec(`
+		UPDATE wallet_balances
+		SET amount = amount + $1, updated_at = NOW()
+		WHERE wallet_id = $2 AND currency = $3
+	`, amount, walletID, currency)
+	return err
+}
+
+// SubtractBalance — deducts amount, fails if insufficient
+func (r *WalletRepository) SubtractBalance(walletID uuid.UUID, currency domain.Currency, amount decimal.Decimal) error {
+	result, err := r.db.Exec(`
+		UPDATE wallet_balances
+		SET amount = amount - $1, updated_at = NOW()
+		WHERE wallet_id = $2
+		  AND currency = $3
+		  AND amount >= $1
+	`, amount, walletID, currency)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errors.New("insufficient balance or currency not found")
+	}
+	return nil
+}
+
+// GetByUserID — alias used by deposit/withdraw usecases
+func (r *WalletRepository) GetByUserID(userID uuid.UUID) (*domain.Wallet, error) {
+	return r.GetWalletByUserID(userID)
+}

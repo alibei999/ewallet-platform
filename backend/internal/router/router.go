@@ -49,12 +49,14 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	walletUC := usecase.NewWalletUsecase(walletRepo)
 	transferUC := usecase.NewTransferUsecase(walletRepo, authRepo, transactionRepo)
 	kycUC := usecase.NewKYCUsecase(kycRepo, authRepo)
+	depositUC := usecase.NewDepositUsecase(walletRepo, transactionRepo, kycRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
 	walletHandler := handler.NewWalletHandler(walletUC)
 	transferHandler := handler.NewTransferHandler(transferUC)
 	kycHandler := handler.NewKYCHandler(kycUC)
+	depositHandler := handler.NewDepositHandler(depositUC)
 
 	// Routes
 	api := r.Group("/api/v1")
@@ -74,7 +76,8 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 		{
 			wallet.POST("/create", walletHandler.Create)
 			wallet.GET("/balance", walletHandler.GetBalance)
-			wallet.POST("/deposit", walletHandler.MockDeposit)
+			wallet.POST("/deposit", depositHandler.Deposit)
+			wallet.POST("/withdraw", depositHandler.Withdraw)
 			wallet.POST("/transfer", transferHandler.Transfer)
 		}
 
