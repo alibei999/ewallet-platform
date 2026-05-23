@@ -117,3 +117,11 @@ func CheckTokenHash(token, hashStr string) bool {
 	h := sha256.Sum256([]byte(token))
 	return fmt.Sprintf("%x", h) == hashStr
 }
+
+func (r *AuthRepository) SetVerified(userID uuid.UUID) error {
+	_, err := r.db.Exec(`
+		UPDATE users SET is_verified = true, updated_at = NOW()
+		WHERE id = $1
+	`, userID)
+	return err
+}

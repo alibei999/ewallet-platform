@@ -62,3 +62,19 @@ func (m *AuthMiddleware) RequireRole(roles ...string) gin.HandlerFunc {
 		c.Abort()
 	}
 }
+
+// RequireAdmin checks that user has admin role
+func (m *AuthMiddleware) RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists || role.(string) != "admin" {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "admin access required",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}

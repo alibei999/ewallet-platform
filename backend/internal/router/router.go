@@ -42,20 +42,24 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	authRepo := repository.NewAuthRepository(db)
 	walletRepo := repository.NewWalletRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
+	kycRepo := repository.NewKYCRepository(db)
 
 	// Usecases
 	authUC := usecase.NewAuthUsecase(authRepo, jwtManager)
 	walletUC := usecase.NewWalletUsecase(walletRepo)
 	transferUC := usecase.NewTransferUsecase(walletRepo, authRepo, transactionRepo)
+	kycUC := usecase.NewKYCUsecase(kycRepo, authRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
 	walletHandler := handler.NewWalletHandler(walletUC)
 	transferHandler := handler.NewTransferHandler(transferUC)
+	kycHandler := handler.NewKYCHandler(kycUC)
 
 	// Routes
 	api := r.Group("/api/v1")
 	{
+		// Auth routes
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
@@ -65,12 +69,27 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 			auth.GET("/me", authMiddleware.RequireAuth(), authHandler.Me)
 		}
 
+		// Wallet routes
 		wallet := api.Group("/wallet", authMiddleware.RequireAuth())
 		{
 			wallet.POST("/create", walletHandler.Create)
 			wallet.GET("/balance", walletHandler.GetBalance)
 			wallet.POST("/deposit", walletHandler.MockDeposit)
 			wallet.POST("/transfer", transferHandler.Transfer)
+		}
+
+		// KYC routes (user)
+		kyc := api.Group("/kyc", authMiddleware.RequireAuth())
+		{
+			kyc.POST("/submit", kycHandler.Submit)
+			kyc.GET("/status", kycHandler.GetStatus)
+		}
+
+		// Admin routes
+		admin := api.Group("/admin", authMiddleware.RequireAuth(), authMiddleware.RequireAdmin())
+		{
+			admin.GET("/kyc/pending", kycHandler.GetAllPending)
+			admin.POST("/kyc/:id/review", kycHandler.Review)
 		}
 	}
 
