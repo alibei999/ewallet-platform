@@ -21,7 +21,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.FrontendURL, "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -43,6 +43,10 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	walletRepo := repository.NewWalletRepository(db)
 	transactionRepo := repository.NewTransactionRepository(db)
 	kycRepo := repository.NewKYCRepository(db)
+	merchantRepo := repository.NewMerchantRepository(db)
+	invoiceRepo := repository.NewInvoiceRepository(db)
+
+	apiKeyMiddleware := middleware.NewAPIKeyMiddleware(merchantRepo)
 
 	// Usecases
 	authUC := usecase.NewAuthUsecase(authRepo, jwtManager)
@@ -51,6 +55,9 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	kycUC := usecase.NewKYCUsecase(kycRepo, authRepo)
 	depositUC := usecase.NewDepositUsecase(walletRepo, transactionRepo, kycRepo)
 	txUC := usecase.NewTransactionUsecase(transactionRepo, walletRepo)
+	webhookUC := usecase.NewWebhookUsecase(invoiceRepo, merchantRepo)
+	invoiceUC := usecase.NewInvoiceUsecase(invoiceRepo, merchantRepo, walletRepo, transactionRepo, webhookUC, cfg.BaseURL)
+	merchantUC := usecase.NewMerchantUsecase(merchantRepo, invoiceRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUC)
@@ -59,6 +66,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 	kycHandler := handler.NewKYCHandler(kycUC)
 	depositHandler := handler.NewDepositHandler(depositUC)
 	txHandler := handler.NewTransactionHandler(txUC)
+	merchantHandler := handler.NewMerchantHandler(merchantUC, invoiceUC)
 
 	// Routes
 	api := r.Group("/api/v1")
@@ -86,7 +94,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 		// Transaction routes
 		transactions := api.Group("/transactions", authMiddleware.RequireAuth())
 		{
-			transactions.GET("",    txHandler.GetHistory)
+			transactions.GET("",     txHandler.GetHistory)
 			transactions.GET("/:id", txHandler.GetByID)
 		}
 
@@ -102,6 +110,27 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 		{
 			admin.GET("/kyc/pending", kycHandler.GetAllPending)
 			admin.POST("/kyc/:id/review", kycHandler.Review)
+		}
+
+		// Merchant management routes (JWT auth — merchant owner)
+		merchant := api.Group("/merchant", authMiddleware.RequireAuth())
+		{
+			merchant.POST("/register", merchantHandler.Register)
+			merchant.GET("/info", merchantHandler.GetInfo)
+			merchant.GET("/invoices", merchantHandler.GetInvoices)
+		}
+
+		// Merchant API routes (API key auth — server-to-server)
+		merchantAPI := api.Group("/merchant", apiKeyMiddleware.RequireAPIKey())
+		{
+			merchantAPI.POST("/invoice", merchantHandler.CreateInvoice)
+		}
+
+		// Invoice routes
+		invoices := api.Group("/invoices")
+		{
+			invoices.POST("/:id/pay", authMiddleware.RequireAuth(), merchantHandler.PayInvoice)
+			invoices.GET("/:id/status", merchantHandler.GetInvoiceStatus) // public
 		}
 	}
 
