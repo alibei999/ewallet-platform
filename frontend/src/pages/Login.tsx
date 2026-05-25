@@ -26,7 +26,7 @@ export default function Login() {
     try {
       const data = await loginApi({ email, password });
       login(data.token, data.refresh_token, data.user);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(
@@ -45,7 +45,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white">eWallet</h1>
-          <p className="text-[#9ca3af] mt-2">Sign in to your account</p>
+          <p className="text-[#9ca3af] mt-2">Welcome back</p>
         </div>
 
         <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-6">
