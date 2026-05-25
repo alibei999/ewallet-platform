@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleRoute from '@/components/RoleRoute';
 import Layout from '@/components/Layout';
 
+import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import NotFound from '@/pages/NotFound';
@@ -38,11 +39,12 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Public */}
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
           {/* Protected – regular users */}
-          <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+          <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/wallet" element={<AppLayout><Wallet /></AppLayout>} />
           <Route path="/transfer" element={<AppLayout><Transfer /></AppLayout>} />
           <Route path="/deposit" element={<AppLayout><Deposit /></AppLayout>} />

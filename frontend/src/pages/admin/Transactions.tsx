@@ -76,7 +76,12 @@ export default function AdminTransactions() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">All Transactions</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-white">All Transactions</h1>
+          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-500/15 text-red-400">
+            ADMIN
+          </span>
+        </div>
         <p className="text-[#9ca3af] mt-1">
           {isLoading
             ? 'Loading…'

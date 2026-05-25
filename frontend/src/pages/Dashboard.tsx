@@ -56,6 +56,13 @@ function fmtNum(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [balances, setBalances] = useState<WalletBalance[]>([]);
@@ -108,9 +115,9 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">
-          Welcome back, {user?.first_name} {user?.last_name}
+          {getGreeting()}, {user?.first_name || 'there'}
         </h1>
-        <p className="text-[#9ca3af] mt-1">Here's your financial overview</p>
+        <p className="text-[#9ca3af] mt-1">{"Here's your financial overview"}</p>
       </div>
 
       {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
@@ -198,7 +205,7 @@ export default function Dashboard() {
             className="flex items-center gap-2 bg-[#6366f1] hover:bg-[#5558e3] text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm"
           >
             <ArrowLeftRight className="w-4 h-4" />
-            Send
+            Send Money
           </Link>
           <Link
             to="/deposit"
