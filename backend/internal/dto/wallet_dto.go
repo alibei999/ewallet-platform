@@ -16,14 +16,14 @@ type BalanceResponse struct {
 }
 
 type DepositRequest struct {
-	Amount     string `json:"amount" binding:"required"`
-	Currency   string `json:"currency" binding:"required,oneof=KZT USD EUR RUB"`
-	CardNumber string `json:"card_number" binding:"required"`
+	Amount     decimal.Decimal `json:"amount" binding:"required"`
+	Currency   string          `json:"currency" binding:"required,oneof=KZT USD EUR RUB"`
+	CardNumber string          `json:"card_number"`
 }
 
 type WithdrawRequest struct {
-	Amount      string `json:"amount" binding:"required"`
-	Currency    string `json:"currency" binding:"required,oneof=KZT USD EUR RUB"`
-	CardNumber  string `json:"card_number" binding:"required"`
-	Description string `json:"description"`
+	Amount      decimal.Decimal `json:"amount" binding:"required"`
+	Currency    string          `json:"currency" binding:"required,oneof=KZT USD EUR RUB"`
+	CardNumber  string          `json:"card_number"`
+	Description string          `json:"description"`
 }

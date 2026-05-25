@@ -1,29 +1,30 @@
 import { Link } from 'react-router-dom';
-import { Home, AlertTriangle } from 'lucide-react';
+import { Home, ArrowLeft } from 'lucide-react';
+import Button from '@/components/ui/Button';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-      <div className="text-center max-w-md">
-        <div className="flex justify-center mb-6">
-          <div className="w-20 h-20 rounded-2xl bg-[#1a1a1a] border border-[#222222] flex items-center justify-center">
-            <AlertTriangle className="w-9 h-9 text-[#6366f1]" />
-          </div>
-        </div>
-
-        <h1 className="text-7xl font-extrabold text-white tracking-tight">404</h1>
-        <p className="text-xl font-semibold text-white mt-3">Page not found</p>
-        <p className="text-[#9ca3af] text-sm mt-2 leading-relaxed">
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
+    <div className="auth-shell">
+      <div className="auth-shell__inner" style={{ textAlign: 'center', maxWidth: 400 }}>
+        <p className="vault-eyebrow" style={{ marginBottom: 12 }}>Error 404</p>
+        <h1 className="auth-shell__title" style={{ fontSize: '2.5rem' }}>Page not found</h1>
+        <p className="auth-shell__subtitle">
+          The link may be broken or the page was removed. Check the URL or return home.
         </p>
-
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 mt-8 bg-[#6366f1] hover:bg-[#5558e3] text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-        >
-          <Home className="w-4 h-4" />
-          Back to Home
-        </Link>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 28 }}>
+          <Link to="/">
+            <Button variant="primary">
+              <Home size={16} />
+              Home
+            </Button>
+          </Link>
+          <Link to="/dashboard">
+            <Button variant="secondary">
+              <ArrowLeft size={16} />
+              Dashboard
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   );

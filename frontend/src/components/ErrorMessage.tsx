@@ -12,19 +12,12 @@ export default function ErrorMessage({
   className = '',
 }: ErrorMessageProps) {
   return (
-    <div
-      className={`flex items-start gap-3 p-4 rounded-xl border border-error/30 bg-error/10 text-error ${className}`}
-      role="alert"
-    >
-      <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-      <span className="flex-1 text-sm leading-relaxed">{message}</span>
+    <div className={`alert-error ${className}`.trim()} role="alert">
+      <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+      <span style={{ flex: 1 }}>{message}</span>
       {onDismiss && (
-        <button
-          onClick={onDismiss}
-          className="shrink-0 p-0.5 rounded hover:bg-error/20 transition-colors"
-          aria-label="Dismiss"
-        >
-          <X className="w-4 h-4" />
+        <button type="button" onClick={onDismiss} aria-label="Dismiss">
+          <X size={16} />
         </button>
       )}
     </div>

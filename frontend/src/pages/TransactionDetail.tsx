@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import PageLoader from '@/components/ui/PageLoader';
+import PageHeader from '@/components/ui/PageHeader';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import ErrorMessage from '@/components/ErrorMessage';
 import { getById } from '@/api/transactions';
 import type { Transaction } from '@/types';
@@ -9,26 +12,26 @@ import type { Transaction } from '@/types';
 const TYPE_LABELS: Record<Transaction['type'], string> = {
   deposit: 'Deposit',
   withdrawal: 'Withdrawal',
-  transfer_in: 'Transfer In',
-  transfer_out: 'Transfer Out',
+  transfer_in: 'Transfer in',
+  transfer_out: 'Transfer out',
   payment: 'Payment',
   refund: 'Refund',
 };
 
-const TYPE_COLORS: Record<Transaction['type'], string> = {
-  deposit: 'bg-green-500/15 text-green-400',
-  withdrawal: 'bg-red-500/15 text-red-400',
-  transfer_in: 'bg-indigo-500/15 text-indigo-400',
-  transfer_out: 'bg-indigo-500/15 text-indigo-400',
-  payment: 'bg-yellow-500/15 text-yellow-400',
-  refund: 'bg-purple-500/15 text-purple-400',
+const TYPE_BADGE: Record<Transaction['type'], string> = {
+  deposit: 'badge badge-deposit',
+  withdrawal: 'badge badge-withdraw',
+  transfer_in: 'badge badge-transfer',
+  transfer_out: 'badge badge-transfer',
+  payment: 'badge badge-pending',
+  refund: 'badge badge-neutral',
 };
 
-const STATUS_COLORS: Record<Transaction['status'], string> = {
-  completed: 'bg-green-500/15 text-green-400',
-  pending: 'bg-yellow-500/15 text-yellow-400',
-  failed: 'bg-red-500/15 text-red-400',
-  cancelled: 'bg-gray-500/15 text-gray-400',
+const STATUS_BADGE: Record<Transaction['status'], string> = {
+  completed: 'badge badge-success',
+  pending: 'badge badge-pending',
+  failed: 'badge badge-failed',
+  cancelled: 'badge badge-neutral',
 };
 
 function fmtNum(n: number) {
@@ -37,9 +40,9 @@ function fmtNum(n: number) {
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-6 py-3 border-b border-[#222222] last:border-0">
-      <span className="text-sm text-[#9ca3af] shrink-0 w-32">{label}</span>
-      <div className="text-sm text-white text-right">{children}</div>
+    <div className="detail-row">
+      <span className="detail-row__label">{label}</span>
+      <div className="detail-row__value">{children}</div>
     </div>
   );
 }
@@ -59,94 +62,70 @@ export default function TransactionDetail() {
       .finally(() => setIsLoading(false));
   }, [id]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader label="Loading transaction…" />;
 
   if (error || !transaction) {
     return (
-      <div className="max-w-lg mx-auto space-y-4">
-        <button
-          onClick={() => navigate('/transactions')}
-          className="flex items-center gap-2 text-sm text-[#9ca3af] hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Transactions
-        </button>
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        <Link to="/transactions" className="vault-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20, fontSize: 13 }}>
+          <ArrowLeft size={14} />
+          Back to transactions
+        </Link>
         <ErrorMessage message={error ?? 'Transaction not found.'} />
       </div>
     );
   }
 
+  const isCredit = transaction.type === 'deposit' || transaction.type === 'transfer_in';
+
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <button
-        onClick={() => navigate('/transactions')}
-        className="flex items-center gap-2 text-sm text-[#9ca3af] hover:text-white transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Transactions
-      </button>
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      <PageHeader
+        title={`Transaction #${transaction.id}`}
+        subtitle={new Date(transaction.created_at).toLocaleString(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })}
+        action={
+          <Button variant="ghost" size="sm" onClick={() => navigate('/transactions')}>
+            <ArrowLeft size={14} />
+            Back
+          </Button>
+        }
+      />
 
-      <div>
-        <h1 className="text-2xl font-bold text-white">Transaction #{transaction.id}</h1>
-        <p className="text-[#9ca3af] mt-1">
-          {new Date(transaction.created_at).toLocaleString()}
-        </p>
-      </div>
-
-      <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-6">
-        <DetailRow label="Transaction ID">
-          <span className="font-mono">#{transaction.id}</span>
-        </DetailRow>
-
+      <Card>
         <DetailRow label="Type">
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[transaction.type]}`}
-          >
+          <span className={TYPE_BADGE[transaction.type]}>
+            <span className="badge-dot" />
             {TYPE_LABELS[transaction.type]}
           </span>
         </DetailRow>
-
         <DetailRow label="Status">
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[transaction.status]}`}
-          >
+          <span className={STATUS_BADGE[transaction.status]}>
+            <span className="badge-dot" />
             {transaction.status}
           </span>
         </DetailRow>
-
         <DetailRow label="Amount">
-          <span className="font-semibold">
+          <span style={{ color: isCredit ? 'var(--success)' : 'var(--text)' }}>
+            {isCredit ? '+' : '−'}
             {transaction.currency} {fmtNum(transaction.amount)}
           </span>
         </DetailRow>
-
         <DetailRow label="Fee">
           {transaction.currency} {fmtNum(transaction.fee)}
         </DetailRow>
-
-        <DetailRow label="Net Amount">
-          <span className="font-semibold">
-            {transaction.currency}{' '}
-            {fmtNum(transaction.amount - transaction.fee)}
-          </span>
+        <DetailRow label="Net">
+          {transaction.currency} {fmtNum(transaction.amount - transaction.fee)}
         </DetailRow>
-
-        <DetailRow label="Currency">{transaction.currency}</DetailRow>
-
         <DetailRow label="Description">
-          {transaction.description || <span className="text-[#9ca3af]">—</span>}
+          {transaction.description || <span style={{ color: 'var(--text-muted)' }}>—</span>}
         </DetailRow>
-
-        <DetailRow label="Date">
-          {new Date(transaction.created_at).toLocaleString()}
+        <DetailRow label="Reference">
+          <span className="mono">#{transaction.id}</span>
         </DetailRow>
-      </div>
+      </Card>
     </div>
   );
 }

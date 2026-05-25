@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/alibei999/ewallet-backend/internal/dto"
 	"github.com/alibei999/ewallet-backend/internal/usecase"
 	"github.com/alibei999/ewallet-backend/pkg/response"
@@ -104,4 +105,27 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"email":   email,
 		"role":    role,
 	})
+}
+
+// DELETE /api/v1/auth/account
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	userIDRaw, _ := c.Get("user_id")
+	userIDStr, ok := userIDRaw.(string)
+	if !ok || userIDStr == "" {
+		response.Err(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		response.Err(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	if err := h.usecase.DeleteAccount(userID); err != nil {
+		response.Err(c, http.StatusInternalServerError, "failed to delete account")
+		return
+	}
+
+	response.OK(c, http.StatusOK, "account deleted successfully", nil)
 }

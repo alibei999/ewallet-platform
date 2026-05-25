@@ -35,8 +35,8 @@ func (u *DepositUsecase) Deposit(userIDStr string, req dto.DepositRequest) (*dto
 		return nil, errors.New("invalid user id")
 	}
 
-	amount, err := decimal.NewFromString(req.Amount)
-	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
+	amount := req.Amount
+	if amount.LessThanOrEqual(decimal.Zero) {
 		return nil, errors.New("invalid amount")
 	}
 
@@ -46,14 +46,27 @@ func (u *DepositUsecase) Deposit(userIDStr string, req dto.DepositRequest) (*dto
 	}
 
 	wallet, err := u.walletRepo.GetByUserID(userID)
-	if err != nil || wallet == nil {
-		return nil, errors.New("wallet not found")
+	if err != nil {
+		return nil, err
+	}
+	if wallet == nil {
+		wallet, err = u.walletRepo.CreateWallet(userID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create wallet: %w", err)
+		}
 	}
 
 	currency := domain.Currency(req.Currency)
 
 	if err := u.walletRepo.AddBalance(wallet.ID, currency, amount); err != nil {
 		return nil, fmt.Errorf("failed to add balance: %w", err)
+	}
+	updated, err := u.walletRepo.GetBalance(wallet.ID, currency)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, errors.New("currency balance not found for wallet")
 	}
 
 	tx := &domain.Transaction{
@@ -81,8 +94,8 @@ func (u *DepositUsecase) Withdraw(userIDStr string, req dto.WithdrawRequest) (*d
 		return nil, errors.New("invalid user id")
 	}
 
-	amount, err := decimal.NewFromString(req.Amount)
-	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
+	amount := req.Amount
+	if amount.LessThanOrEqual(decimal.Zero) {
 		return nil, errors.New("invalid amount")
 	}
 
@@ -96,7 +109,10 @@ func (u *DepositUsecase) Withdraw(userIDStr string, req dto.WithdrawRequest) (*d
 	}
 
 	wallet, err := u.walletRepo.GetByUserID(userID)
-	if err != nil || wallet == nil {
+	if err != nil {
+		return nil, err
+	}
+	if wallet == nil {
 		return nil, errors.New("wallet not found")
 	}
 

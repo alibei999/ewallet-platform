@@ -122,6 +122,13 @@ func (u *AuthUsecase) Logout(refreshToken string) error {
 	return u.repo.RevokeRefreshToken(tokenHash)
 }
 
+func (u *AuthUsecase) DeleteAccount(userID uuid.UUID) error {
+	if err := u.repo.RevokeAllUserTokens(userID); err != nil {
+		return err
+	}
+	return u.repo.DeleteUser(userID)
+}
+
 func (u *AuthUsecase) generateTokenPair(user *domain.User) (*dto.AuthResponse, error) {
 	accessToken, err := u.jwtManager.GenerateAccessToken(
 		user.ID.String(), user.Email, string(user.Role),

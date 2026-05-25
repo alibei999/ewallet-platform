@@ -1,57 +1,54 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Activity, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import ErrorMessage from '@/components/ErrorMessage';
 import { getAll } from '@/api/transactions';
 import type { Transaction, TransactionFilters } from '@/types';
 
-const TYPE_LABELS: Record<Transaction['type'], string> = {
-  deposit: 'Deposit',
-  withdrawal: 'Withdrawal',
-  transfer_in: 'Transfer In',
-  transfer_out: 'Transfer Out',
-  payment: 'Payment',
-  refund: 'Refund',
+const TYPE_BADGE: Record<string, string> = {
+  deposit: 'badge badge-deposit', withdrawal: 'badge badge-withdraw',
+  transfer_in: 'badge badge-transfer', transfer_out: 'badge badge-transfer',
+  payment: 'badge badge-pending', refund: 'badge badge-neutral',
 };
-
-const TYPE_COLORS: Record<Transaction['type'], string> = {
-  deposit: 'bg-green-500/15 text-green-400',
-  withdrawal: 'bg-red-500/15 text-red-400',
-  transfer_in: 'bg-indigo-500/15 text-indigo-400',
-  transfer_out: 'bg-indigo-500/15 text-indigo-400',
-  payment: 'bg-yellow-500/15 text-yellow-400',
-  refund: 'bg-purple-500/15 text-purple-400',
+const TYPE_LABEL: Record<string, string> = {
+  deposit: 'Deposit', withdrawal: 'Withdrawal',
+  transfer_in: 'Transfer In', transfer_out: 'Transfer Out',
+  payment: 'Payment', refund: 'Refund',
 };
-
-const STATUS_COLORS: Record<Transaction['status'], string> = {
-  completed: 'bg-green-500/15 text-green-400',
-  pending: 'bg-yellow-500/15 text-yellow-400',
-  failed: 'bg-red-500/15 text-red-400',
-  cancelled: 'bg-gray-500/15 text-gray-400',
+const STATUS_BADGE: Record<string, string> = {
+  completed: 'badge badge-success', pending: 'badge badge-pending',
+  failed: 'badge badge-failed', cancelled: 'badge badge-neutral',
 };
-
-const TRANSACTION_TYPES: Transaction['type'][] = [
-  'deposit',
-  'withdrawal',
-  'transfer_in',
-  'transfer_out',
-  'payment',
-  'refund',
-];
-
-const TRANSACTION_STATUSES: Transaction['status'][] = [
-  'completed',
-  'pending',
-  'failed',
-  'cancelled',
-];
-
 const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'];
 const PAGE_LIMIT = 20;
 
-function fmtNum(n: number) {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="stat-card">
+      <div style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', color: 'var(--accent)' }}>
+        <Icon size={18} />
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, marginTop: 16, letterSpacing: '-0.02em', color: 'var(--text)' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{label}</div>
+    </div>
+  );
+}
+
+function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange?: (v: string) => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>{label}</span>
+      <select
+        className="vault-input"
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        style={{ height: 36, fontSize: 13, padding: '0 32px 0 12px', minWidth: 140, backgroundImage: 'linear-gradient(45deg, transparent 50%, #737373 50%), linear-gradient(135deg, #737373 50%, transparent 50%)', backgroundPosition: 'calc(100% - 16px) center, calc(100% - 11px) center', backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat' }}
+      >
+        {options.map((o) => <option key={o}>{o}</option>)}
+      </select>
+    </div>
+  );
 }
 
 export default function Transactions() {
@@ -61,162 +58,127 @@ export default function Transactions() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Omit<TransactionFilters, 'page' | 'limit'>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
     getAll({ ...filters, page, limit: PAGE_LIMIT })
-      .then((res) => {
-        setTransactions(res.data);
-        setTotal(res.total);
-      })
-      .catch(() => setError('Failed to load transactions.'))
+      .then((res) => { setTransactions(res.data); setTotal(res.total); })
+      .catch(() => {})
       .finally(() => setIsLoading(false));
   }, [filters, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
-  function updateFilter<K extends keyof typeof filters>(
-    key: K,
-    value: (typeof filters)[K],
-  ) {
+  function updateFilter<K extends keyof typeof filters>(key: K, value: (typeof filters)[K]) {
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
     setPage(1);
   }
 
+  const totalDeposited = transactions.filter((t) => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+  const totalWithdrawn = transactions.filter((t) => t.type === 'withdrawal').reduce((s, t) => s + t.amount, 0);
+
+  function exportPDF() {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('eWallet — Transaction History', 14, 16);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 24);
+
+    const cols = [14, 38, 72, 102, 124, 148, 170];
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    ['Date', 'Type', 'Amount', 'Currency', 'Fee', 'Status', 'Description'].forEach((h, i) => doc.text(h, cols[i], 35));
+    doc.line(14, 37, 196, 37);
+
+    doc.setFont('helvetica', 'normal');
+    transactions.forEach((tx, i) => {
+      const y = 44 + i * 7;
+      if (y > 280) return;
+      doc.text(new Date(tx.created_at).toLocaleDateString(), cols[0], y);
+      doc.text(TYPE_LABEL[tx.type] ?? tx.type, cols[1], y);
+      doc.text(tx.amount.toFixed(2), cols[2], y);
+      doc.text(tx.currency, cols[3], y);
+      doc.text(tx.fee != null ? tx.fee.toFixed(2) : '—', cols[4], y);
+      doc.text(tx.status, cols[5], y);
+      doc.text((tx.description || '—').substring(0, 18), cols[6], y);
+    });
+
+    const footerY = Math.min(44 + transactions.length * 7 + 8, 285);
+    doc.line(14, footerY - 3, 196, footerY - 3);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Total: ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`, 14, footerY + 2);
+
+    doc.save('transactions.pdf');
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Transactions</h1>
-        <p className="text-[#9ca3af] mt-1">Your complete transaction history</p>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: '0 0 4px', color: 'var(--text)' }}>Transactions</h1>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>All inbound and outbound activity</p>
+        </div>
+        <button onClick={exportPDF} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 16px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <Download size={14} /> Export PDF
+        </button>
       </div>
 
-      {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
+      {/* Stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+        <StatCard icon={Activity}   label="Total (this page)" value={String(transactions.length)} />
+        <StatCard icon={TrendingUp} label="Volume"            value={`$${(totalDeposited + totalWithdrawn).toLocaleString('en-US', { maximumFractionDigits: 0 })}`} />
+        <StatCard icon={ArrowUp}    label="Inflow"            value={`$${totalDeposited.toLocaleString('en-US', { maximumFractionDigits: 0 })}`} />
+        <StatCard icon={ArrowDown}  label="Outflow"           value={`$${totalWithdrawn.toLocaleString('en-US', { maximumFractionDigits: 0 })}`} />
+      </div>
 
       {/* Filters */}
-      <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-4 flex flex-wrap gap-3">
-        <select
-          value={filters.type ?? ''}
-          onChange={(e) =>
-            updateFilter('type', e.target.value as Transaction['type'] | undefined)
-          }
-          className="bg-[#111111] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] transition-colors"
-        >
-          <option value="">All Types</option>
-          {TRANSACTION_TYPES.map((t) => (
-            <option key={t} value={t}>{TYPE_LABELS[t]}</option>
-          ))}
-        </select>
-
-        <select
-          value={filters.status ?? ''}
-          onChange={(e) =>
-            updateFilter('status', e.target.value as Transaction['status'] | undefined)
-          }
-          className="bg-[#111111] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] transition-colors"
-        >
-          <option value="">All Statuses</option>
-          {TRANSACTION_STATUSES.map((s) => (
-            <option key={s} value={s} className="capitalize">{s}</option>
-          ))}
-        </select>
-
-        <select
-          value={filters.currency ?? ''}
-          onChange={(e) => updateFilter('currency', e.target.value || undefined)}
-          className="bg-[#111111] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] transition-colors"
-        >
-          <option value="">All Currencies</option>
-          {CURRENCIES.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={filters.start_date ?? ''}
-          onChange={(e) => updateFilter('start_date', e.target.value || undefined)}
-          className="bg-[#111111] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] transition-colors"
-          placeholder="From"
-        />
-        <input
-          type="date"
-          value={filters.end_date ?? ''}
-          onChange={(e) => updateFilter('end_date', e.target.value || undefined)}
-          className="bg-[#111111] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6366f1] transition-colors"
-          placeholder="To"
-        />
-
-        {Object.values(filters).some(Boolean) && (
-          <button
-            onClick={() => { setFilters({}); setPage(1); }}
-            className="text-sm text-[#9ca3af] hover:text-white transition-colors underline"
-          >
-            Clear filters
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: 22, marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <FilterSelect label="Type" value={filters.type ?? ''} options={['', 'deposit', 'withdrawal', 'transfer_in', 'transfer_out']} onChange={(v) => updateFilter('type', v as Transaction['type'] | undefined)} />
+          <FilterSelect label="Status" value={filters.status ?? ''} options={['', 'completed', 'pending', 'failed', 'cancelled']} onChange={(v) => updateFilter('status', v as Transaction['status'] | undefined)} />
+          <FilterSelect label="Currency" value={filters.currency ?? ''} options={['', ...CURRENCIES]} onChange={(v) => updateFilter('currency', v || undefined)} />
+          <div style={{ flex: 1 }} />
+          <button onClick={() => { setFilters({}); setPage(1); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <RefreshCw size={13} /> Clear
           </button>
-        )}
+        </div>
       </div>
 
       {/* Table */}
-      <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl overflow-hidden">
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}>
             <LoadingSpinner size="lg" />
           </div>
         ) : transactions.length === 0 ? (
-          <p className="text-[#9ca3af] text-sm text-center py-16">No transactions found</p>
+          <p style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)', fontSize: 14 }}>No transactions found</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+          <div style={{ overflowX: 'auto' }}>
+            <table className="tbl" style={{ minWidth: 700 }}>
               <thead>
-                <tr className="border-b border-[#222222]">
-                  {['Date', 'Type', 'Amount', 'Currency', 'Fee', 'Status', 'Description'].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className={`text-xs font-medium text-[#9ca3af] px-4 py-3 ${
-                          h === 'Amount' || h === 'Fee' ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
+                <tr>
+                  <th>Reference</th>
+                  <th>Type</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th style={{ textAlign: 'right' }}>Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((tx) => (
-                  <tr
-                    key={tx.id}
-                    onClick={() => navigate(`/transactions/${tx.id}`)}
-                    className="border-b border-[#222222] last:border-0 hover:bg-[#222222]/40 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-[#9ca3af] whitespace-nowrap">
-                      {new Date(tx.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[tx.type]}`}
-                      >
-                        {TYPE_LABELS[tx.type]}
+                  <tr key={tx.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/transactions/${tx.id}`)}>
+                    <td className="txt mono">#{tx.id}</td>
+                    <td><span className={TYPE_BADGE[tx.type] ?? 'badge badge-neutral'}>{TYPE_LABEL[tx.type] ?? tx.type}</span></td>
+                    <td style={{ color: 'var(--text-2)', fontSize: 13 }}>{tx.description || '—'}</td>
+                    <td><span className={STATUS_BADGE[tx.status] ?? 'badge badge-neutral'}><span className="badge-dot" />{tx.status}</span></td>
+                    <td className="mono" style={{ fontSize: 12 }}>{new Date(tx.created_at).toLocaleDateString()}</td>
+                    <td style={{ textAlign: 'right' }} className="txt">
+                      <span style={{ color: tx.type === 'deposit' || tx.type === 'transfer_in' ? 'var(--success)' : 'var(--text)' }}>
+                        {tx.currency} {tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-white whitespace-nowrap">
-                      {fmtNum(tx.amount)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[#9ca3af]">{tx.currency}</td>
-                    <td className="px-4 py-3 text-right text-sm text-[#9ca3af] whitespace-nowrap">
-                      {fmtNum(tx.fee)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[tx.status]}`}
-                      >
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[#9ca3af] max-w-[200px] truncate">
-                      {tx.description || '—'}
                     </td>
                   </tr>
                 ))}
@@ -224,34 +186,37 @@ export default function Transactions() {
             </table>
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {!isLoading && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-[#9ca3af]">
-            Page {page} of {totalPages} · {total} total
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-[#9ca3af] hover:text-white bg-[#1a1a1a] border border-[#222222] hover:border-[#6366f1] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Prev
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-[#9ca3af] hover:text-white bg-[#1a1a1a] border border-[#222222] hover:border-[#6366f1] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-              <ChevronRight className="w-4 h-4" />
-            </button>
+        {!isLoading && totalPages > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Showing {transactions.length} of {total}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-2)', opacity: page === 1 ? 0.4 : 1 }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((p) => (
+                <button key={p} onClick={() => setPage(p)}
+                  style={{ height: 30, padding: '0 10px', borderRadius: 10, background: p === page ? 'var(--accent)' : 'transparent', border: '1px solid var(--border)', color: p === page ? 'white' : 'var(--text-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-2)', opacity: page === totalPages ? 0.4 : 1 }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

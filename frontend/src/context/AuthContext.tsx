@@ -6,13 +6,20 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '@/types';
-import { getMe } from '@/api/auth';
+import { jwtDecode } from 'jwt-decode';
+
+interface JWTPayload {
+  user_id: string;
+  email: string;
+  role: string;
+  exp: number;
+}
 
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (token: string, refreshToken: string, user: User) => void;
+  login: (accessToken: string, refreshToken: string, user: User) => void;
   logout: () => void;
   setUser: (user: User) => void;
 }
@@ -24,29 +31,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const accessToken = localStorage.getItem('access_token');
+    if (!accessToken) {
       setIsLoading(false);
       return;
     }
-    getMe()
-      .then((u) => setUserState(u))
-      .catch(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-      })
-      .finally(() => setIsLoading(false));
+    try {
+      const payload = jwtDecode<JWTPayload>(accessToken);
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      if (payload.exp <= nowInSeconds) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        setUserState(null);
+        setIsLoading(false);
+        return;
+      }
+      setUserState({
+        id: Number(payload.user_id) || 0,
+        email: payload.email,
+        first_name: '',
+        last_name: '',
+        role: payload.role as User['role'],
+        is_active: true,
+      });
+    } catch {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      setUserState(null);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  function login(token: string, refreshTokenValue: string, u: User) {
-    localStorage.setItem('token', token);
-    localStorage.setItem('refreshToken', refreshTokenValue);
+  function login(accessToken: string, refreshTokenValue: string, u: User) {
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshTokenValue);
     setUserState(u);
   }
 
   function logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setUserState(null);
   }
 

@@ -125,3 +125,8 @@ func (r *AuthRepository) SetVerified(userID uuid.UUID) error {
 	`, userID)
 	return err
 }
+
+func (r *AuthRepository) DeleteUser(userID uuid.UUID) error {
+	_, err := r.db.Exec(`DELETE FROM users WHERE id = $1`, userID)
+	return err
+}

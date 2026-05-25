@@ -79,6 +79,7 @@ func Setup(db *sql.DB, cfg *config.Config) *gin.Engine {
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.POST("/logout", authHandler.Logout)
 			auth.GET("/me", authMiddleware.RequireAuth(), authHandler.Me)
+			auth.DELETE("/account", authMiddleware.RequireAuth(), authHandler.DeleteAccount)
 		}
 
 		// Wallet routes

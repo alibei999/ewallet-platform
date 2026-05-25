@@ -4,9 +4,8 @@ import type { KYCStatus } from '@/types';
 interface KYCPayload {
   full_name: string;
   date_of_birth: string;
-  address: string;
   id_number: string;
-  id_type: 'passport' | 'national_id' | 'drivers_license';
+  photo_url?: string;
 }
 
 export async function submit(payload: KYCPayload): Promise<KYCStatus> {

@@ -1,42 +1,50 @@
-import { LogOut, UserCircle, Shield } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext';
+import { Link, useLocation } from 'react-router-dom';
+
+const PAGE_META: Record<string, { section?: string; title: string }> = {
+  '/dashboard': { title: 'Dashboard' },
+  '/wallet': { title: 'Wallet' },
+  '/transfer': { title: 'Transfer' },
+  '/deposit': { title: 'Deposit' },
+  '/withdraw': { title: 'Withdraw' },
+  '/transactions': { title: 'Transactions' },
+  '/crypto': { section: 'Assets', title: 'Crypto' },
+  '/merchant': { section: 'Business', title: 'Merchant' },
+  '/settings': { title: 'Settings' },
+  '/admin/users': { section: 'Admin', title: 'Users' },
+  '/admin/kyc': { section: 'Admin', title: 'KYC reviews' },
+  '/admin/transactions': { section: 'Admin', title: 'All transactions' },
+};
+
+function resolveMeta(pathname: string) {
+  if (pathname.startsWith('/transactions/')) {
+    return { section: 'Transactions', title: 'Details' };
+  }
+  if (pathname.startsWith('/invoices/')) {
+    return { section: 'Payments', title: 'Pay invoice' };
+  }
+  return PAGE_META[pathname];
+}
 
 export default function TopBar() {
-  const { user, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const isAdminPage = location.pathname.startsWith('/admin');
-
-  function handleLogout() {
-    logout();
-    navigate('/');
-  }
+  const { pathname } = useLocation();
+  const meta = resolveMeta(pathname);
+  const crumbs = meta
+    ? [meta.section, meta.title].filter(Boolean) as string[]
+    : [pathname.replace(/^\//, '').replace(/-/g, ' ') || 'Page'];
 
   return (
-    <header className="h-16 border-b border-[#222222] bg-[#0a0a0a] flex items-center justify-between px-6 sticky top-0 z-10">
-      <div className="flex items-center gap-3">
-        {isAdminPage && (
-          <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-red-500/15 text-red-400">
-            <Shield className="w-3.5 h-3.5" />
-            ADMIN
+    <header className="topbar">
+      <nav className="topbar__crumbs" aria-label="Breadcrumb">
+        {crumbs.map((c, i) => (
+          <span key={c} className="topbar__crumb">
+            {i > 0 && <span className="topbar__sep" aria-hidden>/</span>}
+            <span className={i === crumbs.length - 1 ? 'topbar__current' : undefined}>{c}</span>
           </span>
-        )}
-        <div className="flex items-center gap-2">
-          <UserCircle className="w-4 h-4 text-[#9ca3af]" />
-          <span className="text-sm text-[#9ca3af]">
-            {user ? `${user.first_name} ${user.last_name}` : ''}
-          </span>
-        </div>
-      </div>
-
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-2 text-sm text-[#9ca3af] hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1a1a1a]"
-      >
-        <LogOut className="w-4 h-4" />
-        <span>Logout</span>
-      </button>
+        ))}
+      </nav>
+      <Link to="/settings" className="topbar__settings-link">
+        Account
+      </Link>
     </header>
   );
 }

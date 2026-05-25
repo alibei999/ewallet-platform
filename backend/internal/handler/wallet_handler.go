@@ -7,7 +7,6 @@ import (
 	"github.com/alibei999/ewallet-backend/internal/usecase"
 	"github.com/alibei999/ewallet-backend/pkg/response"
 	"github.com/gin-gonic/gin"
-	"github.com/shopspring/decimal"
 )
 
 type WalletHandler struct {
@@ -63,13 +62,7 @@ func (h *WalletHandler) MockDeposit(c *gin.Context) {
 		return
 	}
 
-	amount, err := decimal.NewFromString(req.Amount)
-	if err != nil {
-		response.Err(c, http.StatusBadRequest, "invalid amount format")
-		return
-	}
-
-	wallet, err := h.usecase.MockDeposit(userID.(string), req.Currency, amount)
+	wallet, err := h.usecase.MockDeposit(userID.(string), req.Currency, req.Amount)
 	if err != nil {
 		response.Err(c, http.StatusBadRequest, err.Error())
 		return

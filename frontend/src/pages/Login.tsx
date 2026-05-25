@@ -4,8 +4,11 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { login as loginApi } from '@/api/auth';
 import { useAuth } from '@/context/AuthContext';
+import AuthLayout from '@/components/ui/AuthLayout';
 import ErrorMessage from '@/components/ErrorMessage';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import FormField from '@/components/ui/FormField';
+import Button from '@/components/ui/Button';
+import SuccessBanner from '@/components/ui/SuccessBanner';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,12 +28,12 @@ export default function Login() {
     setIsLoading(true);
     try {
       const data = await loginApi({ email, password });
-      login(data.token, data.refresh_token, data.user);
+      login(data.access_token, data.refresh_token, data.user);
       navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(
-          (err.response?.data as { message?: string })?.message ?? 'Invalid credentials.',
+          (err.response?.data as { message?: string })?.message ?? 'Invalid email or password.',
         );
       } else {
         setError('Something went wrong. Please try again.');
@@ -41,83 +44,42 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">eWallet</h1>
-          <p className="text-[#9ca3af] mt-2">Welcome back</p>
-        </div>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Sign in to manage your wallets, transfers, and merchant tools."
+      footer={
+        <>
+          Don&apos;t have an account?{' '}
+          <Link to="/register">Create one</Link>
+        </>
+      }
+    >
+      {successMessage && <SuccessBanner message={successMessage} />}
+      {error && <ErrorMessage message={error} onDismiss={() => setError(null)} className="mb-4" />}
 
-        <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-6">
-          {successMessage && (
-            <div className="mb-4 p-4 rounded-xl border border-green-500/30 bg-green-500/10 text-green-400 text-sm">
-              {successMessage}
-            </div>
-          )}
-
-          {error && (
-            <ErrorMessage
-              message={error}
-              onDismiss={() => setError(null)}
-              className="mb-4"
-            />
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-[#9ca3af] text-sm font-medium mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                className="bg-[#111111] border border-[#222222] text-white rounded-lg px-4 py-3 w-full focus:outline-none focus:border-[#6366f1] transition-colors placeholder:text-[#9ca3af]/40"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[#9ca3af] text-sm font-medium mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="bg-[#111111] border border-[#222222] text-white rounded-lg px-4 py-3 w-full focus:outline-none focus:border-[#6366f1] transition-colors placeholder:text-[#9ca3af]/40"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-[#6366f1] hover:bg-[#5558e3] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
-            >
-              {isLoading ? (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span>Signing in…</span>
-                </>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-[#9ca3af] mt-5">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="text-[#6366f1] hover:underline font-medium">
-              Create one
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <FormField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+        />
+        <FormField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          placeholder="Your password"
+        />
+        <Button type="submit" loading={isLoading} style={{ width: '100%', marginTop: 4 }}>
+          Sign in
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }

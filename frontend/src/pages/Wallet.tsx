@@ -1,122 +1,153 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, Wallet as WalletIcon, Lock } from 'lucide-react';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import ErrorMessage from '@/components/ErrorMessage';
+import { useNavigate } from 'react-router-dom';
+import { Send, Plus, Upload, Copy, MoreHorizontal, ChevronRight } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
+import PageLoader from '@/components/ui/PageLoader';
+import Button from '@/components/ui/Button';
 import { getBalance } from '@/api/wallet';
-import type { WalletBalance } from '@/types';
+import { getAll } from '@/api/transactions';
+import type { WalletBalance, Transaction } from '@/types';
 
-const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;
-
-const CURRENCY_META: Record<string, { flag: string; name: string }> = {
-  KZT: { flag: '🇰🇿', name: 'Kazakhstani Tenge' },
-  USD: { flag: '🇺🇸', name: 'US Dollar' },
-  EUR: { flag: '🇪🇺', name: 'Euro' },
-  RUB: { flag: '🇷🇺', name: 'Russian Ruble' },
+const CCY_META: Record<string, { name: string; symbol: string }> = {
+  KZT: { name: 'Kazakhstani Tenge', symbol: '₸' },
+  USD: { name: 'US Dollar',         symbol: '$' },
+  EUR: { name: 'Euro',              symbol: '€' },
+  RUB: { name: 'Russian Ruble',     symbol: '₽' },
+  GBP: { name: 'Pound Sterling',    symbol: '£' },
 };
 
-function fmtNum(n: number) {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n: number, ccy = 'USD') {
+  const sym = CCY_META[ccy]?.symbol ?? '';
+  return sym + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function Wallet() {
+const TYPE_BADGE: Record<string, string> = {
+  deposit: 'badge badge-deposit', withdrawal: 'badge badge-withdraw',
+  transfer_in: 'badge badge-transfer', transfer_out: 'badge badge-transfer',
+  payment: 'badge badge-pending', refund: 'badge badge-neutral',
+};
+const TYPE_LABEL: Record<string, string> = {
+  deposit: 'Deposit', withdrawal: 'Withdrawal',
+  transfer_in: 'Transfer In', transfer_out: 'Transfer Out',
+  payment: 'Payment', refund: 'Refund',
+};
+const STATUS_BADGE: Record<string, string> = {
+  completed: 'badge badge-success', pending: 'badge badge-pending',
+  failed: 'badge badge-failed', cancelled: 'badge badge-neutral',
+};
+
+export default function WalletPage() {
+  const navigate = useNavigate();
   const [balances, setBalances] = useState<WalletBalance[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function load(refresh = false) {
-    if (refresh) setIsRefreshing(true);
-    else setIsLoading(true);
-
-    getBalance()
-      .then(setBalances)
-      .catch(() => setError('Failed to load balances.'))
-      .finally(() => {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      });
-  }
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
-    load();
+    Promise.allSettled([getBalance(), getAll({ limit: 20 })])
+      .then(([balRes, txRes]) => {
+        if (balRes.status === 'fulfilled') setBalances(balRes.value);
+        if (txRes.status === 'fulfilled') setTransactions(txRes.value.data);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2200);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  if (isLoading) return <PageLoader label="Loading wallets…" />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Wallet</h1>
-          <p className="text-[#9ca3af] mt-1">Your balances across all currencies</p>
-        </div>
-        <button
-          onClick={() => load(true)}
-          disabled={isRefreshing}
-          className="flex items-center gap-2 text-sm text-[#9ca3af] hover:text-white bg-[#1a1a1a] border border-[#222222] hover:border-[#6366f1] px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Wallet"
+        subtitle="Multi-currency balances and recent wallet activity."
+        action={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" size="md">
+              <Plus size={14} /> Add currency
+            </Button>
+            <Button variant="primary" size="md" onClick={() => navigate('/transfer')}>
+              <Send size={14} /> Send money
+            </Button>
+          </div>
+        }
+      />
 
-      {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {CURRENCIES.map((currency) => {
-          const bal = balances.find((b) => b.currency === currency);
-          const meta = CURRENCY_META[currency];
-          const balance = bal?.balance ?? 0;
-          const locked = bal?.locked_balance ?? 0;
-          const available = balance - locked;
-
+      <div className="vault-grid-2">
+        {balances.map((b) => {
+          const meta = CCY_META[b.currency] ?? { name: b.currency, symbol: '' };
           return (
-            <div
-              key={currency}
-              className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-6 space-y-4"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{meta.flag}</span>
+            <div key={b.currency} className="bal-card">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div>
-                  <p className="text-white font-semibold">{currency}</p>
-                  <p className="text-[#9ca3af] text-xs">{meta.name}</p>
+                  <div style={{ fontSize: 11, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>{b.currency}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4 }}>{meta.name} · IBAN •••• 9821</div>
                 </div>
+                <button style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-2)', position: 'relative', zIndex: 1 }}>
+                  <MoreHorizontal size={14} />
+                </button>
               </div>
-
-              <div>
-                <p className="text-xs text-[#9ca3af] mb-1">Total Balance</p>
-                <p className="text-2xl font-bold text-white">
-                  {fmtNum(balance)}{' '}
-                  <span className="text-base font-normal text-[#9ca3af]">{currency}</span>
-                </p>
+              <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 18, color: 'var(--text)' }}>{fmt(b.balance, b.currency)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                {b.locked_balance > 0 ? `${fmt(b.locked_balance, b.currency)} locked · 1 pending transfer` : 'No funds on hold'}
               </div>
-
-              <div className="border-t border-[#222222] pt-4 grid grid-cols-2 gap-4">
-                <div className="flex items-start gap-2">
-                  <WalletIcon className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-[#9ca3af]">Available</p>
-                    <p className="text-sm font-semibold text-white">{fmtNum(available)}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Lock className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-[#9ca3af]">Locked</p>
-                    <p className="text-sm font-semibold text-white">{fmtNum(locked)}</p>
-                  </div>
-                </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 20, position: 'relative', zIndex: 1 }}>
+                <button onClick={() => navigate('/transfer')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Send size={13} /> Send
+                </button>
+                <button onClick={() => navigate('/deposit')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Plus size={13} /> Add
+                </button>
+                <button onClick={() => navigate('/withdraw')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Upload size={13} /> Withdraw
+                </button>
+                <button onClick={() => setToast(`${b.currency} details copied`)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>
+                  <Copy size={13} />
+                </button>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Recent activity */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', marginTop: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text)', letterSpacing: '-0.01em' }}>Recent activity</h2>
+          <button onClick={() => navigate('/transactions')} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            View all <ChevronRight size={12} />
+          </button>
+        </div>
+        {transactions.length === 0 ? (
+          <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>No transactions yet</p>
+        ) : (
+          <table className="tbl">
+            <thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Date</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+            <tbody>
+              {transactions.slice(0, 8).map((tx) => (
+                <tr key={tx.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/transactions/${tx.id}`)}>
+                  <td className="txt mono">#{tx.id}</td>
+                  <td><span className={TYPE_BADGE[tx.type] ?? 'badge badge-neutral'}>{TYPE_LABEL[tx.type] ?? tx.type}</span></td>
+                  <td><span className={STATUS_BADGE[tx.status] ?? 'badge badge-neutral'}><span className="badge-dot" />{tx.status}</span></td>
+                  <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{new Date(tx.created_at).toLocaleDateString()}</td>
+                  <td style={{ textAlign: 'right' }} className="txt">{fmt(tx.amount, tx.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {toast && (
+        <div className="toast">
+          <Copy size={16} color="var(--accent)" />
+          <span style={{ fontSize: 13, color: 'var(--text)' }}>{toast}</span>
+        </div>
+      )}
     </div>
   );
 }

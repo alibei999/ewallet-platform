@@ -116,7 +116,7 @@ export default function Landing() {
               The Future of Digital Payments
             </h1>
             <p className="mt-6 text-xl text-[#9ca3af] max-w-2xl mx-auto text-pretty">
-              Send money globally, pay merchants, manage crypto — all in one secure wallet platform built for the modern economy.
+              Multi-currency wallets, instant transfers, KYC compliance, and merchant APIs — a complete digital payments stack for your diploma project and beyond.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
@@ -130,7 +130,7 @@ export default function Landing() {
                 to="/login"
                 className="flex items-center gap-2 bg-transparent border border-[#222222] hover:border-[#6366f1] text-white font-semibold px-8 py-4 rounded-xl transition-colors text-lg"
               >
-                View Demo
+                Sign in
               </Link>
             </div>
           </div>
@@ -308,7 +308,7 @@ export default function Landing() {
                 How it Works
               </a>
               <a href="#currencies" className="text-sm text-[#9ca3af] hover:text-white transition-colors">
-                Pricing
+                Currencies
               </a>
               <a
                 href="https://github.com"

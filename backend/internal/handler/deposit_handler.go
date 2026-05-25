@@ -34,6 +34,8 @@ func (h *DepositHandler) Deposit(c *gin.Context) {
 			response.Err(c, http.StatusNotFound, err.Error())
 		case "invalid amount", "amount exceeds maximum deposit limit of 1,000,000":
 			response.Err(c, http.StatusBadRequest, err.Error())
+		case "currency balance not found for wallet":
+			response.Err(c, http.StatusBadRequest, err.Error())
 		default:
 			response.Err(c, http.StatusInternalServerError, err.Error())
 		}

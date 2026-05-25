@@ -16,7 +16,6 @@ import Deposit from '@/pages/Deposit';
 import Withdraw from '@/pages/Withdraw';
 import Transactions from '@/pages/Transactions';
 import TransactionDetail from '@/pages/TransactionDetail';
-import KYC from '@/pages/KYC';
 import Merchant from '@/pages/Merchant';
 import Crypto from '@/pages/Crypto';
 import Settings from '@/pages/Settings';
@@ -51,7 +50,6 @@ export default function App() {
           <Route path="/withdraw" element={<AppLayout><Withdraw /></AppLayout>} />
           <Route path="/transactions" element={<AppLayout><Transactions /></AppLayout>} />
           <Route path="/transactions/:id" element={<AppLayout><TransactionDetail /></AppLayout>} />
-          <Route path="/kyc" element={<AppLayout><KYC /></AppLayout>} />
           <Route path="/merchant" element={<AppLayout><Merchant /></AppLayout>} />
           <Route path="/crypto" element={<AppLayout><Crypto /></AppLayout>} />
           <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />

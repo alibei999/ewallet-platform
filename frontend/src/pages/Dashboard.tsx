@@ -1,286 +1,260 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeftRight,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  Wallet,
-  TrendingUp,
-  Activity,
-  AlertTriangle,
+  Wallet, Activity, AlertTriangle,
+  Send, Download, Upload, ChevronRight, X, ArrowUpDown,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import StatCard from '@/components/StatCard';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import ErrorMessage from '@/components/ErrorMessage';
+import { getUserDisplayName } from '@/lib/userDisplay';
+import PageHeader from '@/components/ui/PageHeader';
+import PageLoader from '@/components/ui/PageLoader';
+import EmptyState from '@/components/ui/EmptyState';
+import Button from '@/components/ui/Button';
 import { getBalance } from '@/api/wallet';
 import { getAll } from '@/api/transactions';
 import { getStatus } from '@/api/kyc';
 import type { WalletBalance, Transaction, KYCStatus } from '@/types';
 
-const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;
-
-const CURRENCY_FLAGS: Record<string, string> = {
-  KZT: '🇰🇿',
-  USD: '🇺🇸',
-  EUR: '🇪🇺',
-  RUB: '🇷🇺',
-};
-
-const TYPE_LABELS: Record<Transaction['type'], string> = {
-  deposit: 'Deposit',
-  withdrawal: 'Withdrawal',
-  transfer_in: 'Transfer In',
-  transfer_out: 'Transfer Out',
-  payment: 'Payment',
-  refund: 'Refund',
-};
-
-const TYPE_COLORS: Record<Transaction['type'], string> = {
-  deposit: 'bg-green-500/15 text-green-400',
-  withdrawal: 'bg-red-500/15 text-red-400',
-  transfer_in: 'bg-indigo-500/15 text-indigo-400',
-  transfer_out: 'bg-indigo-500/15 text-indigo-400',
-  payment: 'bg-yellow-500/15 text-yellow-400',
-  refund: 'bg-purple-500/15 text-purple-400',
-};
-
-const STATUS_COLORS: Record<Transaction['status'], string> = {
-  completed: 'bg-green-500/15 text-green-400',
-  pending: 'bg-yellow-500/15 text-yellow-400',
-  failed: 'bg-red-500/15 text-red-400',
-  cancelled: 'bg-gray-500/15 text-gray-400',
-};
-
-function fmtNum(n: number) {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n: number, ccy = 'USD') {
+  const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', KZT: '₸', RUB: '₽' };
+  const sym = symbols[ccy] ?? '';
+  return sym + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const TYPE_BADGE: Record<string, string> = {
+  deposit: 'badge badge-deposit',
+  withdrawal: 'badge badge-withdraw',
+  transfer_in: 'badge badge-transfer',
+  transfer_out: 'badge badge-transfer',
+  payment: 'badge badge-pending',
+  refund: 'badge badge-neutral',
+};
+const TYPE_LABEL: Record<string, string> = {
+  deposit: 'Deposit', withdrawal: 'Withdrawal',
+  transfer_in: 'Transfer In', transfer_out: 'Transfer Out',
+  payment: 'Payment', refund: 'Refund',
+};
+const STATUS_BADGE: Record<string, string> = {
+  completed: 'badge badge-success',
+  pending: 'badge badge-pending',
+  failed: 'badge badge-failed',
+  cancelled: 'badge badge-neutral',
+};
+
 function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
   return 'Good evening';
+}
+
+function StatCard({ icon: Icon, label, value, iconColor = 'var(--accent)' }: {
+  icon: React.ElementType; label: string; value: string; iconColor?: string;
+}) {
+  return (
+    <div className="stat-card">
+      <div style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.25)', color: iconColor }}>
+        <Icon size={18} />
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, marginTop: 16, letterSpacing: '-0.02em', color: 'var(--text)' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{label}</div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [balances, setBalances] = useState<WalletBalance[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [kyc, setKyc] = useState<KYCStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [kycDismissed, setKycDismissed] = useState(false);
+  const [activeCcy, setActiveCcy] = useState('USD');
 
   useEffect(() => {
-    Promise.all([getBalance(), getAll({ limit: 100 }), getStatus()])
-      .then(([bal, txRes, kycStatus]) => {
-        setBalances(bal);
-        setTransactions(txRes.data);
-        setKyc(kycStatus);
+    Promise.allSettled([getBalance(), getAll({ limit: 100 }), getStatus()])
+      .then(([balRes, txRes, kycRes]) => {
+        if (balRes.status === 'fulfilled') setBalances(balRes.value);
+        if (txRes.status === 'fulfilled') setTransactions(txRes.value.data);
+        if (kycRes.status === 'fulfilled') setKyc(kycRes.value);
       })
-      .catch(() => setError('Failed to load dashboard data.'))
       .finally(() => setIsLoading(false));
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  const now = new Date();
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (isLoading) return <PageLoader label="Loading dashboard…" />;
 
   const totalDeposited = transactions
     .filter((t) => t.type === 'deposit' && t.status === 'completed')
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((s, t) => s + t.amount, 0);
 
   const totalSpent = transactions
-    .filter(
-      (t) =>
-        (t.type === 'withdrawal' || t.type === 'transfer_out') &&
-        t.status === 'completed',
-    )
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter((t) => (t.type === 'withdrawal' || t.type === 'transfer_out') && t.status === 'completed')
+    .reduce((s, t) => s + t.amount, 0);
 
-  const thisMonthCount = transactions.filter(
-    (t) => new Date(t.created_at) >= thisMonthStart,
-  ).length;
+  const totalBalance = balances.reduce((s, b) => s + b.balance, 0);
+  const recent = transactions.slice(0, 6);
 
-  const recent = transactions.slice(0, 5);
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric',
+  });
+  const displayName = getUserDisplayName(user).split(' ')[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">
-          {getGreeting()}, {user?.first_name || 'there'}
-        </h1>
-        <p className="text-[#9ca3af] mt-1">{"Here's your financial overview"}</p>
-      </div>
+    <div>
+      <PageHeader
+        title={`${getGreeting()}, ${displayName}`}
+        subtitle={today}
+        action={
+          <Link to="/deposit">
+            <Button variant="primary" size="sm">Add funds</Button>
+          </Link>
+        }
+      />
 
-      {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
-
-      {kyc && kyc.status !== 'approved' && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-400">
-          <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
-          <span className="text-sm">
-            {kyc.status === 'not_submitted' && (
-              <>
-                Your identity is not verified.{' '}
-                <Link to="/kyc" className="underline font-medium">
-                  Complete KYC
-                </Link>{' '}
-                to unlock all features.
-              </>
-            )}
-            {kyc.status === 'pending' &&
-              "Your KYC is under review. We'll notify you once approved."}
-            {kyc.status === 'rejected' && (
-              <>
-                Your KYC was rejected.{' '}
-                <Link to="/kyc" className="underline font-medium">
-                  Resubmit
-                </Link>{' '}
-                with correct information.
-              </>
-            )}
-          </span>
+      {/* KYC banner */}
+      {kyc && kyc.status !== 'approved' && !kycDismissed && (
+        <div className="kyc-banner">
+          <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: 'rgba(245,158,11,0.15)', color: 'var(--warning)', display: 'grid', placeItems: 'center', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <AlertTriangle size={18} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>Complete identity verification</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 2 }}>
+              {kyc.status === 'not_submitted' && 'Verify your identity to unlock higher limits and withdrawals.'}
+              {kyc.status === 'pending' && 'Your documents are under review — this usually takes up to 24 hours.'}
+              {kyc.status === 'rejected' && 'Verification was declined. Update your details and submit again.'}
+            </div>
+          </div>
+          <Link
+            to="/settings?section=kyc"
+            style={{
+              display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 12px',
+              borderRadius: 10, background: 'var(--accent)', color: 'white',
+              fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0,
+            }}
+          >
+            Continue KYC
+          </Link>
+          <button
+            onClick={() => setKycDismissed(true)}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      <div>
-        <h2 className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider mb-3">
-          Wallet Balances
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {CURRENCIES.map((currency) => {
-            const bal = balances.find((b) => b.currency === currency);
-            return (
-              <StatCard
-                key={currency}
-                label={`${CURRENCY_FLAGS[currency]} ${currency}`}
-                value={fmtNum(bal?.balance ?? 0)}
-                subLabel="Locked"
-                subValue={fmtNum(bal?.locked_balance ?? 0)}
-                icon={<Wallet className="w-5 h-5" />}
-              />
-            );
-          })}
-        </div>
+      {/* Stat cards */}
+      <div className="vault-grid-4" style={{ marginBottom: 24 }}>
+        <StatCard icon={Wallet}   label="Total balance"   value={fmt(totalBalance)} />
+        <StatCard icon={Download} label="Money in"        value={fmt(totalDeposited)} iconColor="var(--success)" />
+        <StatCard icon={Upload}   label="Money out"       value={fmt(totalSpent)}     iconColor="var(--error)" />
+        <StatCard icon={Activity} label="Transactions"    value={String(transactions.length)} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          label="Total Deposited"
-          value={fmtNum(totalDeposited)}
-          icon={<TrendingUp className="w-5 h-5" />}
-          trend="up"
-          trendLabel="All time"
-        />
-        <StatCard
-          label="Total Spent"
-          value={fmtNum(totalSpent)}
-          icon={<ArrowUpCircle className="w-5 h-5" />}
-          trend="neutral"
-          trendLabel="All time"
-        />
-        <StatCard
-          label="This Month"
-          value={String(thisMonthCount)}
-          subLabel="Period"
-          subValue={now.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          icon={<Activity className="w-5 h-5" />}
-        />
-      </div>
-
-      <div>
-        <h2 className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider mb-3">
-          Quick Actions
-        </h2>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            to="/transfer"
-            className="flex items-center gap-2 bg-[#6366f1] hover:bg-[#5558e3] text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm"
-          >
-            <ArrowLeftRight className="w-4 h-4" />
-            Send Money
-          </Link>
-          <Link
-            to="/deposit"
-            className="flex items-center gap-2 bg-[#1a1a1a] border border-[#222222] hover:border-[#6366f1] text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm"
-          >
-            <ArrowDownCircle className="w-4 h-4" />
-            Deposit
-          </Link>
-          <Link
-            to="/withdraw"
-            className="flex items-center gap-2 bg-[#1a1a1a] border border-[#222222] hover:border-[#6366f1] text-white font-semibold py-2.5 px-5 rounded-lg transition-colors text-sm"
-          >
-            <ArrowUpCircle className="w-4 h-4" />
-            Withdraw
-          </Link>
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-semibold text-[#9ca3af] uppercase tracking-wider">
-            Recent Transactions
-          </h2>
-          <Link to="/transactions" className="text-sm text-[#6366f1] hover:underline">
-            View all
-          </Link>
-        </div>
-        <div className="bg-[#1a1a1a] border border-[#222222] rounded-xl overflow-hidden">
-          {recent.length === 0 ? (
-            <p className="text-[#9ca3af] text-sm text-center py-10">No transactions yet</p>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[#222222]">
-                  {['Date', 'Type', 'Amount', 'Status'].map((h) => (
-                    <th
-                      key={h}
-                      className={`text-xs font-medium text-[#9ca3af] px-4 py-3 ${
-                        h === 'Amount' ? 'text-right' : 'text-left'
-                      }`}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recent.map((tx) => (
-                  <tr key={tx.id} className="border-b border-[#222222] last:border-0">
-                    <td className="px-4 py-3 text-sm text-[#9ca3af]">
-                      {new Date(tx.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${TYPE_COLORS[tx.type]}`}
-                      >
-                        {TYPE_LABELS[tx.type]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm font-medium text-white">
-                      {tx.currency} {fmtNum(tx.amount)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[tx.status]}`}
-                      >
-                        {tx.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Balance overview */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: 22, marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>Total balance · all currencies</div>
+            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text)' }}>{fmt(totalBalance)}</div>
+          </div>
+          {balances.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', maxWidth: 360 }}>
+              {balances.map((b) => (
+                <button
+                  key={b.currency}
+                  onClick={() => setActiveCcy(b.currency)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '7px 12px', borderRadius: 999,
+                    background: activeCcy === b.currency ? 'var(--accent-glow)' : 'var(--card)',
+                    border: `1px solid ${activeCcy === b.currency ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
+                    color: activeCcy === b.currency ? 'white' : 'var(--text)',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {b.currency}
+                </button>
+              ))}
+            </div>
           )}
         </div>
+
+        {/* Quick actions */}
+        <div style={{ display: 'flex', gap: 12 }}>
+          {[
+            { icon: Send,        label: 'Send',     desc: 'To anyone in seconds',   href: '/transfer' },
+            { icon: Download,    label: 'Deposit',  desc: 'Card, bank, or crypto',  href: '/deposit' },
+            { icon: Upload,      label: 'Withdraw', desc: 'Out to your bank',       href: '/withdraw' },
+            { icon: ArrowUpDown, label: 'Crypto', desc: 'Deposit or withdraw crypto', href: '/crypto' },
+          ].map(({ icon: Icon, label, desc, href }) => (
+            <button key={label} onClick={() => navigate(href)} className="qa">
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--accent-glow)', color: 'var(--accent)', display: 'grid', placeItems: 'center', border: '1px solid rgba(99,102,241,0.25)', flexShrink: 0 }}>
+                <Icon size={18} />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent transactions */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.01em', color: 'var(--text)' }}>Recent transactions</h2>
+          <Link
+            to="/transactions"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
+          >
+            View all <ChevronRight size={12} />
+          </Link>
+        </div>
+
+        {recent.length === 0 ? (
+          <EmptyState
+            icon={Activity}
+            title="No activity yet"
+            description="Make your first deposit or transfer to see transactions here."
+            action={
+              <Link to="/deposit">
+                <Button variant="primary" size="sm">Deposit funds</Button>
+              </Link>
+            }
+          />
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.map((tx) => (
+                <tr key={tx.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/transactions/${tx.id}`)}>
+                  <td className="txt">
+                    <div style={{ color: 'var(--text)', fontWeight: 500 }}>{tx.description || TYPE_LABEL[tx.type] || tx.type}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{tx.currency} · {new Date(tx.created_at).toLocaleDateString()}</div>
+                  </td>
+                  <td><span className={TYPE_BADGE[tx.type] ?? 'badge badge-neutral'}>{TYPE_LABEL[tx.type] ?? tx.type}</span></td>
+                  <td><span className={STATUS_BADGE[tx.status] ?? 'badge badge-neutral'}><span className="badge-dot" />{tx.status}</span></td>
+                  <td style={{ textAlign: 'right' }} className="txt">
+                    <span style={{ color: tx.type === 'deposit' || tx.type === 'transfer_in' ? 'var(--success)' : 'var(--text)' }}>
+                      {tx.type === 'deposit' || tx.type === 'transfer_in' ? '+' : '−'}{fmt(tx.amount, tx.currency)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
