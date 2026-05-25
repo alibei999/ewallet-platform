@@ -74,10 +74,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-lg border-b border-[#222222]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#6366f1] rounded-lg flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">PayFlow</span>
+            <span className="text-xl font-bold text-white">eWallet</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-sm text-[#9ca3af] hover:text-white transition-colors">
@@ -286,7 +283,7 @@ export default function Landing() {
             Ready to get started?
           </h2>
           <p className="mt-4 text-[#9ca3af] text-lg">
-            Join thousands of users who trust PayFlow for their digital payments.
+            Join thousands of users who trust eWallet for their digital payments.
           </p>
           <Link
             to="/register"
@@ -302,12 +299,7 @@ export default function Landing() {
       <footer className="py-12 px-6 border-t border-[#222222]">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-[#6366f1] rounded-lg flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">PayFlow</span>
-            </div>
+            <span className="text-xl font-bold text-white">eWallet</span>
             <div className="flex items-center gap-8">
               <a href="#features" className="text-sm text-[#9ca3af] hover:text-white transition-colors">
                 Features
@@ -328,7 +320,7 @@ export default function Landing() {
               </a>
             </div>
             <p className="text-sm text-[#9ca3af]">
-              PayFlow &copy; {new Date().getFullYear()}
+              eWallet &copy; {new Date().getFullYear()}
             </p>
           </div>
         </div>

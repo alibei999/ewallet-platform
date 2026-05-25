@@ -70,14 +70,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
   return (
     <aside className="h-screen w-[240px] bg-[#0a0a0a] border-r border-[#222222] flex flex-col py-6 px-3 overflow-y-auto">
       <div className="flex items-center justify-between px-3 mb-8">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-[#6366f1] rounded-lg flex items-center justify-center">
-            <Wallet className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">PayFlow</h1>
-            <p className="text-xs text-[#9ca3af]">Payment Platform</p>
-          </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">eWallet</h1>
+          <p className="text-xs text-[#9ca3af]">Payment Platform</p>
         </div>
         {onClose && (
           <button
