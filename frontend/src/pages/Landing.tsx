@@ -52,12 +52,12 @@ const STEPS = [
 ];
 
 const CURRENCIES = [
-  { code: 'KZT', flag: '🇰🇿', name: 'Tenge' },
-  { code: 'USD', flag: '🇺🇸', name: 'Dollar' },
-  { code: 'EUR', flag: '🇪🇺', name: 'Euro' },
-  { code: 'RUB', flag: '🇷🇺', name: 'Ruble' },
-  { code: 'BTC', symbol: '₿', name: 'Bitcoin' },
-  { code: 'USDT', symbol: '₮', name: 'Tether' },
+  { code: 'KZT', name: 'Tenge' },
+  { code: 'USD', name: 'Dollar' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'RUB', name: 'Ruble' },
+  { code: 'BTC', name: 'Bitcoin' },
+  { code: 'USDT', name: 'Tether' },
 ];
 
 const STATS = [
@@ -146,20 +146,17 @@ export default function Landing() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { flag: '🇰🇿', code: 'KZT', amount: '125,000.00' },
-                  { flag: '🇺🇸', code: 'USD', amount: '1,250.50' },
-                  { flag: '🇪🇺', code: 'EUR', amount: '980.00' },
-                  { flag: '🇷🇺', code: 'RUB', amount: '45,000.00' },
+                  { code: 'KZT', amount: '125,000.00' },
+                  { code: 'USD', amount: '1,250.50' },
+                  { code: 'EUR', amount: '980.00' },
+                  { code: 'RUB', amount: '45,000.00' },
                 ].map((wallet) => (
                   <div
                     key={wallet.code}
                     className="bg-[#1a1a1a] border border-[#222222] rounded-xl p-4"
                   >
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">{wallet.flag}</span>
-                      <span className="text-sm font-medium text-[#9ca3af]">{wallet.code}</span>
-                    </div>
-                    <p className="text-xl font-bold text-white">{wallet.amount}</p>
+                    <span className="text-sm font-medium text-[#9ca3af]">{wallet.code}</span>
+                    <p className="text-xl font-bold text-white mt-2">{wallet.amount}</p>
                     <p className="text-xs text-[#9ca3af] mt-1">Available balance</p>
                   </div>
                 ))}
@@ -245,13 +242,10 @@ export default function Landing() {
             {CURRENCIES.map((currency) => (
               <div
                 key={currency.code}
-                className="flex items-center gap-3 bg-[#1a1a1a] border border-[#222222] rounded-xl px-6 py-4 hover:border-[#6366f1]/50 transition-colors"
+                className="bg-[#1a1a1a] border border-[#222222] rounded-xl px-6 py-4 hover:border-[#6366f1]/50 transition-colors"
               >
-                <span className="text-2xl">{currency.flag || currency.symbol}</span>
-                <div>
-                  <p className="text-white font-semibold">{currency.code}</p>
-                  <p className="text-xs text-[#9ca3af]">{currency.name}</p>
-                </div>
+                <p className="text-white font-semibold">{currency.code}</p>
+                <p className="text-xs text-[#9ca3af]">{currency.name}</p>
               </div>
             ))}
           </div>

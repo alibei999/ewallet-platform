@@ -20,13 +20,6 @@ import type { WalletBalance, Transaction, KYCStatus } from '@/types';
 
 const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;
 
-const CURRENCY_FLAGS: Record<string, string> = {
-  KZT: '🇰🇿',
-  USD: '🇺🇸',
-  EUR: '🇪🇺',
-  RUB: '🇷🇺',
-};
-
 const TYPE_LABELS: Record<Transaction['type'], string> = {
   deposit: 'Deposit',
   withdrawal: 'Withdrawal',
@@ -160,7 +153,7 @@ export default function Dashboard() {
             return (
               <StatCard
                 key={currency}
-                label={`${CURRENCY_FLAGS[currency]} ${currency}`}
+                label={currency}
                 value={fmtNum(bal?.balance ?? 0)}
                 subLabel="Locked"
                 subValue={fmtNum(bal?.locked_balance ?? 0)}
