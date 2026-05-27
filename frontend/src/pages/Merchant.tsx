@@ -1,17 +1,17 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import axios from 'axios';
 import { Copy, Eye, EyeOff, Check, Plus, Zap, FileText, Globe } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
 import PageHeader from '@/components/ui/PageHeader';
-import PageLoader from '@/components/ui/PageLoader';
-import { getMerchantInfo, registerMerchant, getInvoices, createInvoice, getWebhookLogs } from '@/api/merchant';
+import Skeleton from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
+import { useToast } from '@/context/ToastContext';
 import type { Merchant, Invoice, WebhookLog } from '@/types';
 
 type Tab = 'overview' | 'invoices' | 'webhooks';
 
-const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;
+const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB', 'GBP'] as const;
 
 const INVOICE_STATUS_BADGE: Record<Invoice['status'], string> = {
   pending: 'badge badge-pending',
@@ -19,6 +19,64 @@ const INVOICE_STATUS_BADGE: Record<Invoice['status'], string> = {
   expired: 'badge badge-neutral',
   cancelled: 'badge badge-failed',
 };
+
+function makeMockMerchant(businessName: string, webhookUrl: string): Merchant {
+  return {
+    id: Math.floor(Math.random() * 10000),
+    business_name: businessName,
+    api_key: `sk_live_${Math.random().toString(36).slice(2, 18)}`,
+    webhook_url: webhookUrl,
+    is_active: true,
+  };
+}
+
+function makeMockInvoices(): Invoice[] {
+  const now = new Date();
+  return [
+    {
+      id: 901,
+      order_id: 'INV-1082',
+      amount: 420.5,
+      currency: 'USD',
+      status: 'paid',
+      description: 'Monthly subscription',
+      expires_at: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+      paid_at: now.toISOString(),
+      created_at: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: 902,
+      order_id: 'INV-1083',
+      amount: 1180,
+      currency: 'KZT',
+      status: 'pending',
+      description: 'Hardware shipment',
+      expires_at: new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date(now.getTime() - 60 * 60 * 1000).toISOString(),
+    },
+  ];
+}
+
+function makeMockWebhooks(): WebhookLog[] {
+  return [
+    {
+      id: 401,
+      invoice_id: 901,
+      event: 'invoice.paid',
+      payload: { amount: 420.5 },
+      status_code: 200,
+      delivered_at: new Date().toISOString(),
+    },
+    {
+      id: 402,
+      invoice_id: 902,
+      event: 'invoice.created',
+      payload: { amount: 1180 },
+      status_code: 200,
+      delivered_at: new Date().toISOString(),
+    },
+  ];
+}
 
 function fmtNum(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,10 +92,12 @@ function RowLine({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function MerchantPage() {
+  const { notify } = useToast();
   const [merchant, setMerchant] = useState<Merchant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('overview');
   const [error, setError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState('');
 
   const [regBusiness, setRegBusiness] = useState('');
   const [regWebhook, setRegWebhook] = useState('');
@@ -47,7 +107,7 @@ export default function MerchantPage() {
   const [copied, setCopied] = useState(false);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicesLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [invOrderId, setInvOrderId] = useState('');
   const [invAmount, setInvAmount] = useState('');
@@ -58,43 +118,30 @@ export default function MerchantPage() {
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   const [webhooks, setWebhooks] = useState<WebhookLog[]>([]);
-  const [webhooksLoading, setWebhooksLoading] = useState(false);
-
-  const invoicesFetchedRef = useRef(false);
-  const webhooksFetchedRef = useRef(false);
+  const [webhooksLoading] = useState(false);
 
   useEffect(() => {
-    getMerchantInfo()
-      .then(setMerchant)
-      .catch(() => setMerchant(null))
-      .finally(() => setIsLoading(false));
+    const t = setTimeout(() => setIsLoading(false), 450);
+    return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    if (!merchant) return;
-    if (tab === 'invoices' && !invoicesFetchedRef.current) {
-      invoicesFetchedRef.current = true;
-      setInvoicesLoading(true);
-      getInvoices({ limit: 50 }).then((res) => setInvoices(res.data)).catch(() => {}).finally(() => setInvoicesLoading(false));
-    }
-    if (tab === 'webhooks' && !webhooksFetchedRef.current) {
-      webhooksFetchedRef.current = true;
-      setWebhooksLoading(true);
-      getWebhookLogs({ limit: 50 }).then((res) => setWebhooks(res.data)).catch(() => {}).finally(() => setWebhooksLoading(false));
-    }
-  }, [tab, merchant]);
 
   async function handleRegister(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setIsRegistering(true);
-    try {
-      const m = await registerMerchant({ business_name: regBusiness, webhook_url: regWebhook });
+    setTimeout(() => {
+      const m = makeMockMerchant(regBusiness, regWebhook);
       setMerchant(m);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setError((err.response?.data as { message?: string })?.message ?? 'Registration failed.');
-      else setError('Something went wrong.');
-    } finally { setIsRegistering(false); }
+      setClientSecret(`cs_live_${Math.random().toString(36).slice(2, 18)}`);
+      setInvoices(makeMockInvoices());
+      setWebhooks(makeMockWebhooks());
+      setIsRegistering(false);
+      notify({
+        title: 'Merchant profile activated',
+        description: 'API credentials and webhook logs are now available.',
+        tone: 'success',
+      });
+    }, 700);
   }
 
   async function handleCopyKey() {
@@ -104,22 +151,55 @@ export default function MerchantPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleCopySecret() {
+    if (!clientSecret) return;
+    await navigator.clipboard.writeText(clientSecret);
+    notify({
+      title: 'Client secret copied',
+      description: 'Store this credential securely.',
+      tone: 'info',
+    });
+  }
+
   async function handleCreateInvoice(e: FormEvent) {
     e.preventDefault();
     setInvoiceError(null);
     setIsCreating(true);
     try {
-      const inv = await createInvoice({ order_id: invOrderId, amount: parseFloat(invAmount), currency: invCurrency, description: invDescription, expires_in_minutes: parseInt(invExpires) || 60 });
+      const inv: Invoice = {
+        id: Math.floor(Math.random() * 10000),
+        order_id: invOrderId,
+        amount: parseFloat(invAmount),
+        currency: invCurrency,
+        status: 'pending',
+        description: invDescription,
+        expires_at: new Date(Date.now() + (parseInt(invExpires) || 60) * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+      };
       setInvoices((prev) => [inv, ...prev]);
       setShowCreateForm(false);
       setInvOrderId(''); setInvAmount(''); setInvDescription('');
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setInvoiceError((err.response?.data as { message?: string })?.message ?? 'Failed to create invoice.');
-      else setInvoiceError('Something went wrong.');
+      setInvoiceError('Something went wrong.');
     } finally { setIsCreating(false); }
   }
 
-  if (isLoading) return <PageLoader label="Loading merchant portal…" />;
+  if (isLoading) {
+    return (
+      <div>
+        <div className="page-header">
+          <div className="page-header__text">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <div className="merchant-grid-2">
+          <div className="merchant-card"><Skeleton className="h-40 w-full" /></div>
+          <div className="merchant-card"><Skeleton className="h-40 w-full" /></div>
+        </div>
+      </div>
+    );
+  }
 
   const pageHeader = (
     <PageHeader
@@ -250,6 +330,15 @@ export default function MerchantPage() {
                   {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
                 </button>
               </div>
+              <label style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-muted)', fontWeight: 500, marginTop: 16 }}>Client secret</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input readOnly value={clientSecret}
+                  style={{ flex: 1, height: 40, padding: '0 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font-mono)', outline: 'none' }} />
+                <button onClick={handleCopySecret}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 14px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  <Copy size={13} /> Copy
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -308,7 +397,11 @@ export default function MerchantPage() {
             {invoicesLoading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}><LoadingSpinner size="lg" /></div>
             ) : invoices.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)', fontSize: 14 }}>No invoices yet</p>
+              <EmptyState
+                icon={FileText}
+                title="No invoices yet"
+                description="Create your first invoice to begin accepting payments."
+              />
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="tbl" style={{ minWidth: 600 }}>
@@ -341,7 +434,11 @@ export default function MerchantPage() {
           {webhooksLoading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}><LoadingSpinner size="lg" /></div>
           ) : webhooks.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)', fontSize: 14 }}>No webhook logs yet</p>
+            <EmptyState
+              icon={Globe}
+              title="No webhook logs yet"
+              description="Webhook deliveries will appear here as events occur."
+            />
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table className="tbl" style={{ minWidth: 550 }}>

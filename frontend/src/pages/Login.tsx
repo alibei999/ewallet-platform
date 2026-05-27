@@ -28,7 +28,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       const data = await loginApi({ email, password });
-      login(data.access_token, data.refresh_token, data.user);
+      login(data.token, data.refresh_token, data.user);
       navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -47,6 +47,7 @@ export default function Login() {
     <AuthLayout
       title="Welcome back"
       subtitle="Sign in to manage your wallets, transfers, and merchant tools."
+      showLogo={false}
       footer={
         <>
           Don&apos;t have an account?{' '}

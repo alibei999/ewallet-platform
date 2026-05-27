@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import axios from 'axios';
 import { Copy, Check, AlertTriangle, ChevronRight, QrCode } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-import api from '@/api/axios';
+import { useToast } from '@/context/ToastContext';
 
 type Asset = 'BTC' | 'USDT';
 type Tab = 'deposit' | 'withdraw';
@@ -44,6 +43,7 @@ function RowLine({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function Crypto() {
+  const { notify } = useToast();
   const [tab, setTab] = useState<Tab>('deposit');
   const [asset, setAsset] = useState<Asset>('BTC');
   const [copied, setCopied] = useState(false);
@@ -57,24 +57,32 @@ export default function Crypto() {
   async function handleCopy() {
     await navigator.clipboard.writeText(DEPOSIT_ADDRESSES[asset]);
     setCopied(true);
+    notify({
+      title: 'Address copied',
+      description: `${asset} deposit address copied to clipboard.`,
+      tone: 'success',
+    });
     setTimeout(() => setCopied(false), 2000);
   }
 
-  async function handleWithdraw(e: FormEvent) {
+  function handleWithdraw(e: FormEvent) {
     e.preventDefault();
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum <= 0) { setError('Enter a valid amount.'); return; }
+    if (!destination.trim()) { setError('Enter a valid destination address.'); return; }
     setError(null);
     setIsSubmitting(true);
-    try {
-      await api.post('/crypto/withdraw', { currency: asset, amount: amountNum, destination });
+    setTimeout(() => {
+      setIsSubmitting(false);
       setSuccess(true);
       setAmount('');
       setDestination('');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setError((err.response?.data as { message?: string })?.message ?? 'Withdrawal failed.');
-      else setError('Something went wrong. Please try again.');
-    } finally { setIsSubmitting(false); }
+      notify({
+        title: 'Withdrawal submitted',
+        description: `${amountNum} ${asset} is queued on ${NETWORKS[asset]}.`,
+        tone: 'success',
+      });
+    }, 800);
   }
 
   const addr = DEPOSIT_ADDRESSES[asset];
@@ -91,7 +99,7 @@ export default function Crypto() {
         {(['BTC', 'USDT'] as Asset[]).map((a) => (
           <button
             key={a}
-            onClick={() => { setAsset(a); setCopied(false); setSuccess(false); }}
+            onClick={() => { setAsset(a); setCopied(false); setSuccess(false); setError(null); }}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 14px',
               borderRadius: 20, border: `1px solid ${asset === a ? ASSET_COLOR[a] : 'var(--border)'}`,
@@ -127,9 +135,9 @@ export default function Crypto() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ width: 140, height: 140, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-faint)' }}>
                 <QrCode size={40} />
-                <span style={{ fontSize: 12 }}>QR Code</span>
+                <span style={{ fontSize: 12 }}>{asset} QR</span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 8 }}>Scan to deposit {asset}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 8 }}>Scan to deposit {asset} on {NETWORKS[asset]}</div>
             </div>
 
             {/* Address */}
@@ -140,7 +148,7 @@ export default function Crypto() {
                   {addr}
                 </div>
                 <button onClick={handleCopy}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 14px', borderRadius: 10, background: copied ? 'rgba(34,197,94,0.1)' : 'var(--surface)', border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`, color: copied ? 'var(--success)' : 'var(--text-2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 14px', borderRadius: 10, background: copied ? 'rgba(34,197,94,0.1)' : 'var(--surface)', border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`, color: copied ? 'var(--success)' : 'var(--text-2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, transition: 'all 160ms' }}>
                   {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
                 </button>
               </div>

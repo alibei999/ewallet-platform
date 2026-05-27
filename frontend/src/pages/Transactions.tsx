@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import { ChevronLeft, ChevronRight, Download, RefreshCw, Activity, TrendingUp, ArrowUp, ArrowDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { getAll } from '@/api/transactions';
+import Skeleton from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
+import { useAppData } from '@/context/AppDataContext';
+import { useToast } from '@/context/ToastContext';
 import type { Transaction, TransactionFilters } from '@/types';
 
 const TYPE_BADGE: Record<string, string> = {
@@ -20,7 +23,7 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'badge badge-success', pending: 'badge badge-pending',
   failed: 'badge badge-failed', cancelled: 'badge badge-neutral',
 };
-const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'];
+const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB', 'GBP'];
 const PAGE_LIMIT = 20;
 
 function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
@@ -53,19 +56,41 @@ function FilterSelect({ label, value, options, onChange }: { label: string; valu
 
 export default function Transactions() {
   const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { transactions } = useAppData();
+  const { notify } = useToast();
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<Omit<TransactionFilters, 'page' | 'limit'>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [sortBy, setSortBy] = useState('newest');
 
   useEffect(() => {
     setIsLoading(true);
-    getAll({ ...filters, page, limit: PAGE_LIMIT })
-      .then((res) => { setTransactions(res.data); setTotal(res.total); })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
+    const t = setTimeout(() => setIsLoading(false), 350);
+    return () => clearTimeout(t);
   }, [filters, page]);
+
+  const filteredTransactions = useMemo(() => {
+    let data = [...transactions];
+    if (filters.type) data = data.filter((t) => t.type === filters.type);
+    if (filters.status) data = data.filter((t) => t.status === filters.status);
+    if (filters.currency) data = data.filter((t) => t.currency === filters.currency);
+
+    data.sort((a, b) => {
+      if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === 'amount_desc') return b.amount - a.amount;
+      if (sortBy === 'amount_asc') return a.amount - b.amount;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    return data;
+  }, [transactions, filters, sortBy]);
+
+  useEffect(() => {
+    setTotal(filteredTransactions.length);
+  }, [filteredTransactions]);
+
+  const pagedTransactions = filteredTransactions.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
@@ -74,8 +99,8 @@ export default function Transactions() {
     setPage(1);
   }
 
-  const totalDeposited = transactions.filter((t) => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
-  const totalWithdrawn = transactions.filter((t) => t.type === 'withdrawal').reduce((s, t) => s + t.amount, 0);
+  const totalDeposited = filteredTransactions.filter((t) => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+  const totalWithdrawn = filteredTransactions.filter((t) => t.type === 'withdrawal').reduce((s, t) => s + t.amount, 0);
 
   function exportPDF() {
     const doc = new jsPDF();
@@ -93,7 +118,7 @@ export default function Transactions() {
     doc.line(14, 37, 196, 37);
 
     doc.setFont('helvetica', 'normal');
-    transactions.forEach((tx, i) => {
+    filteredTransactions.forEach((tx, i) => {
       const y = 44 + i * 7;
       if (y > 280) return;
       doc.text(new Date(tx.created_at).toLocaleDateString(), cols[0], y);
@@ -105,12 +130,25 @@ export default function Transactions() {
       doc.text((tx.description || '—').substring(0, 18), cols[6], y);
     });
 
-    const footerY = Math.min(44 + transactions.length * 7 + 8, 285);
+    const footerY = Math.min(44 + filteredTransactions.length * 7 + 8, 285);
     doc.line(14, footerY - 3, 196, footerY - 3);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Total: ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`, 14, footerY + 2);
+    doc.text(`Total: ${filteredTransactions.length} transaction${filteredTransactions.length !== 1 ? 's' : ''}`, 14, footerY + 2);
 
     doc.save('transactions.pdf');
+  }
+
+  function handleExport() {
+    setIsExporting(true);
+    setTimeout(() => {
+      exportPDF();
+      setIsExporting(false);
+      notify({
+        title: 'Export ready',
+        description: 'Your PDF report has been downloaded.',
+        tone: 'success',
+      });
+    }, 700);
   }
 
   return (
@@ -120,8 +158,9 @@ export default function Transactions() {
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: '0 0 4px', color: 'var(--text)' }}>Transactions</h1>
           <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>All inbound and outbound activity</p>
         </div>
-        <button onClick={exportPDF} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 16px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          <Download size={14} /> Export PDF
+        <button onClick={handleExport} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 16px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {isExporting ? <LoadingSpinner size="sm" /> : <Download size={14} />}
+          {isExporting ? 'Preparing…' : 'Export PDF'}
         </button>
       </div>
 
@@ -139,6 +178,7 @@ export default function Transactions() {
           <FilterSelect label="Type" value={filters.type ?? ''} options={['', 'deposit', 'withdrawal', 'transfer_in', 'transfer_out']} onChange={(v) => updateFilter('type', v as Transaction['type'] | undefined)} />
           <FilterSelect label="Status" value={filters.status ?? ''} options={['', 'completed', 'pending', 'failed', 'cancelled']} onChange={(v) => updateFilter('status', v as Transaction['status'] | undefined)} />
           <FilterSelect label="Currency" value={filters.currency ?? ''} options={['', ...CURRENCIES]} onChange={(v) => updateFilter('currency', v || undefined)} />
+          <FilterSelect label="Sort" value={sortBy} options={['newest', 'oldest', 'amount_desc', 'amount_asc']} onChange={(v) => setSortBy(v)} />
           <div style={{ flex: 1 }} />
           <button onClick={() => { setFilters({}); setPage(1); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
             <RefreshCw size={13} /> Clear
@@ -149,11 +189,17 @@ export default function Transactions() {
       {/* Table */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
         {isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}>
-            <LoadingSpinner size="lg" />
+          <div style={{ padding: 32 }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
           </div>
-        ) : transactions.length === 0 ? (
-          <p style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)', fontSize: 14 }}>No transactions found</p>
+        ) : pagedTransactions.length === 0 ? (
+          <EmptyState
+            icon={Activity}
+            title="No transactions found"
+            description="Try adjusting your filters or record a new transaction."
+          />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="tbl" style={{ minWidth: 700 }}>
@@ -168,7 +214,7 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => (
+                {pagedTransactions.map((tx) => (
                   <tr key={tx.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/transactions/${tx.id}`)}>
                     <td className="txt mono">#{tx.id}</td>
                     <td><span className={TYPE_BADGE[tx.type] ?? 'badge badge-neutral'}>{TYPE_LABEL[tx.type] ?? tx.type}</span></td>
@@ -190,7 +236,7 @@ export default function Transactions() {
         {!isLoading && totalPages > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderTop: '1px solid var(--border)' }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Showing {transactions.length} of {total}
+              Showing {pagedTransactions.length} of {total}
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button

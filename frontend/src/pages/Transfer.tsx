@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { Check, ChevronRight, ChevronLeft, Send, AlertCircle } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
-import { sendTransfer } from '@/api/transfer';
+import { useAppData } from '@/context/AppDataContext';
+import { useToast } from '@/context/ToastContext';
 import type { Transaction } from '@/types';
 
 const FEE_RATE = 0.005;
@@ -35,6 +35,8 @@ function Avatar({ name, size = 32 }: { name: string; size?: number }) {
 
 export default function Transfer() {
   const navigate = useNavigate();
+  const { addTransfer } = useAppData();
+  const { notify } = useToast();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
@@ -53,28 +55,27 @@ export default function Transfer() {
     return { name, email, handle: '@' + local.replace(/\./g, '') };
   }, [email]);
 
-  async function handleConfirm() {
+  function isValidEmail(value: string) {
+    return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+  }
+
+  function handleConfirm() {
+    if (!isValidEmail(email)) {
+      setError('Enter a valid recipient email.');
+      return;
+    }
+    if (!amount || amountNum <= 0) {
+      setError('Enter a valid amount.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
-    try {
-      const res = await sendTransfer({
-        recipient_email: email,
-        amount: amountNum,
-        currency: 'USD',
-        description: note || undefined,
-      });
-      setResult(res.transaction);
+    setTimeout(() => {
+      const tx = addTransfer('USD', amountNum, fee, note || undefined);
+      setResult(tx);
       setStep(3);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError((err.response?.data as { message?: string })?.message ?? 'Transfer failed.');
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
-      setStep(1);
-    } finally {
       setIsLoading(false);
-    }
+    }, 700);
   }
 
   return (
@@ -157,7 +158,14 @@ export default function Transfer() {
                 <button onClick={() => navigate('/dashboard')} style={{ display: 'inline-flex', alignItems: 'center', height: 40, padding: '0 16px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
                 <button
                   disabled={!email || !amount || amountNum <= 0}
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    if (!isValidEmail(email)) {
+                      setError('Enter a valid recipient email.');
+                      return;
+                    }
+                    setError(null);
+                    setStep(2);
+                  }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 16px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (!email || !amount || amountNum <= 0) ? 0.5 : 1 }}
                 >
                   Continue <ChevronRight size={14} />
@@ -212,7 +220,17 @@ export default function Transfer() {
                 <button onClick={() => { setStep(1); setEmail(''); setAmount(''); setNote(''); }} style={{ display: 'inline-flex', alignItems: 'center', height: 40, padding: '0 16px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   Send another
                 </button>
-                <button onClick={() => navigate('/transactions')} style={{ display: 'inline-flex', alignItems: 'center', height: 40, padding: '0 16px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <button
+                  onClick={() => {
+                    notify({
+                      title: 'Transfer completed',
+                      description: `${fmt(amountNum)} sent successfully.`,
+                      tone: 'success',
+                    });
+                    navigate('/transactions');
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', height: 40, padding: '0 16px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
                   View receipt
                 </button>
               </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Wallet, Send, Download, Upload, List,
+  LayoutDashboard, Wallet, List,
   ShieldCheck, Bitcoin, Store, Settings, Users, Activity,
   PanelLeft, LogOut, ChevronDown, Check,
 } from 'lucide-react';
@@ -22,18 +22,10 @@ const sections = [
     items: [
       { label: 'Dashboard',    icon: LayoutDashboard, href: '/dashboard' },
       { label: 'Wallet',       icon: Wallet,          href: '/wallet' },
-      { label: 'Transfer',     icon: Send,            href: '/transfer' },
-      { label: 'Deposit',      icon: Download,        href: '/deposit' },
-      { label: 'Withdraw',     icon: Upload,          href: '/withdraw' },
       { label: 'Transactions', icon: List,            href: '/transactions' },
-    ] as NavItem[],
-  },
-  {
-    label: 'More',
-    items: [
-      { label: 'Crypto',       icon: Bitcoin,    href: '/crypto' },
-      { label: 'Merchant',     icon: Store,      href: '/merchant' },
-      { label: 'Settings',     icon: Settings,   href: '/settings' },
+      { label: 'Crypto',       icon: Bitcoin,         href: '/crypto' },
+      { label: 'Merchant',     icon: Store,           href: '/merchant' },
+      { label: 'Settings',     icon: Settings,        href: '/settings' },
     ] as NavItem[],
   },
 ];

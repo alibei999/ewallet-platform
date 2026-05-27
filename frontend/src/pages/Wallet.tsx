@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Send, Plus, Upload, Copy, MoreHorizontal, ChevronRight } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
-import PageLoader from '@/components/ui/PageLoader';
 import Button from '@/components/ui/Button';
-import { getBalance } from '@/api/wallet';
-import { getAll } from '@/api/transactions';
-import type { WalletBalance, Transaction } from '@/types';
+import Skeleton from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
+import { useAppData } from '@/context/AppDataContext';
+import { useActionModals } from '@/context/ActionModalContext';
+import { useToast } from '@/context/ToastContext';
 
 const CCY_META: Record<string, { name: string; symbol: string }> = {
   KZT: { name: 'Kazakhstani Tenge', symbol: '₸' },
@@ -38,27 +39,37 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function WalletPage() {
   const navigate = useNavigate();
-  const [balances, setBalances] = useState<WalletBalance[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const { balances, transactions } = useAppData();
+  const { openAddCurrency, openTransfer, openDeposit, openWithdraw } = useActionModals();
+  const { notify } = useToast();
   const [isLoading, setIsLoading] = useState(true);
-  const [toast, setToast] = useState<string | null>(null);
-
   useEffect(() => {
-    Promise.allSettled([getBalance(), getAll({ limit: 20 })])
-      .then(([balRes, txRes]) => {
-        if (balRes.status === 'fulfilled') setBalances(balRes.value);
-        if (txRes.status === 'fulfilled') setTransactions(txRes.value.data);
-      })
-      .finally(() => setIsLoading(false));
+    const t = setTimeout(() => setIsLoading(false), 450);
+    return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2200);
-    return () => clearTimeout(t);
-  }, [toast]);
-
-  if (isLoading) return <PageLoader label="Loading wallets…" />;
+  if (isLoading) {
+    return (
+      <div>
+        <div className="page-header">
+          <div className="page-header__text">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+          <Skeleton className="h-10 w-44" />
+        </div>
+        <div className="vault-grid-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bal-card">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-9 w-32" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -67,10 +78,10 @@ export default function WalletPage() {
         subtitle="Multi-currency balances and recent wallet activity."
         action={
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" size="md">
+            <Button variant="secondary" size="md" onClick={openAddCurrency}>
               <Plus size={14} /> Add currency
             </Button>
-            <Button variant="primary" size="md" onClick={() => navigate('/transfer')}>
+            <Button variant="primary" size="md" onClick={() => openTransfer()}>
               <Send size={14} /> Send money
             </Button>
           </div>
@@ -87,7 +98,11 @@ export default function WalletPage() {
                   <div style={{ fontSize: 11, color: 'var(--text-faint)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>{b.currency}</div>
                   <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4 }}>{meta.name} · IBAN •••• 9821</div>
                 </div>
-                <button style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-2)', position: 'relative', zIndex: 1 }}>
+                <button
+                  onClick={() => notify({ title: 'Account options', description: 'Additional account management features are coming soon.', tone: 'info' })}
+                  aria-label="Account options"
+                  style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--text-2)', position: 'relative', zIndex: 1 }}
+                >
                   <MoreHorizontal size={14} />
                 </button>
               </div>
@@ -96,16 +111,19 @@ export default function WalletPage() {
                 {b.locked_balance > 0 ? `${fmt(b.locked_balance, b.currency)} locked · 1 pending transfer` : 'No funds on hold'}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 20, position: 'relative', zIndex: 1 }}>
-                <button onClick={() => navigate('/transfer')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => openTransfer(b.currency)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'var(--accent)', border: 'none', color: 'white', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <Send size={13} /> Send
                 </button>
-                <button onClick={() => navigate('/deposit')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => openDeposit(b.currency)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <Plus size={13} /> Add
                 </button>
-                <button onClick={() => navigate('/withdraw')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={() => openWithdraw(b.currency)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   <Upload size={13} /> Withdraw
                 </button>
-                <button onClick={() => setToast(`${b.currency} details copied`)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>
+                <button
+                  onClick={() => notify({ title: `${b.currency} details copied`, description: 'Account details are ready to share.', tone: 'success' })}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}
+                >
                   <Copy size={13} />
                 </button>
               </div>
@@ -123,7 +141,16 @@ export default function WalletPage() {
           </button>
         </div>
         {transactions.length === 0 ? (
-          <p style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>No transactions yet</p>
+          <EmptyState
+            icon={Copy}
+            title="No transactions yet"
+            description="Start with a deposit or send a transfer to see activity here."
+            action={
+              <Button variant="primary" size="sm" onClick={() => openDeposit()}>
+                Add funds
+              </Button>
+            }
+          />
         ) : (
           <table className="tbl">
             <thead><tr><th>Reference</th><th>Type</th><th>Status</th><th>Date</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
@@ -142,12 +169,6 @@ export default function WalletPage() {
         )}
       </div>
 
-      {toast && (
-        <div className="toast">
-          <Copy size={16} color="var(--accent)" />
-          <span style={{ fontSize: 13, color: 'var(--text)' }}>{toast}</span>
-        </div>
-      )}
     </div>
   );
 }

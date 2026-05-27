@@ -7,13 +7,12 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { getUserDisplayName } from '@/lib/userDisplay';
 import PageHeader from '@/components/ui/PageHeader';
-import PageLoader from '@/components/ui/PageLoader';
 import EmptyState from '@/components/ui/EmptyState';
 import Button from '@/components/ui/Button';
-import { getBalance } from '@/api/wallet';
-import { getAll } from '@/api/transactions';
-import { getStatus } from '@/api/kyc';
-import type { WalletBalance, Transaction, KYCStatus } from '@/types';
+import Skeleton from '@/components/ui/Skeleton';
+import { useAppData } from '@/context/AppDataContext';
+import { useActionModals } from '@/context/ActionModalContext';
+import type { KYCStatus } from '@/types';
 
 function fmt(n: number, ccy = 'USD') {
   const symbols: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', KZT: '₸', RUB: '₽' };
@@ -65,24 +64,49 @@ function StatCard({ icon: Icon, label, value, iconColor = 'var(--accent)' }: {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [balances, setBalances] = useState<WalletBalance[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [kyc, setKyc] = useState<KYCStatus | null>(null);
+  const { balances, transactions, totalBalanceUsd } = useAppData();
+  const { openDeposit, openWithdraw, openTransfer } = useActionModals();
+  const [kyc] = useState<KYCStatus | null>({ status: 'approved' });
   const [isLoading, setIsLoading] = useState(true);
   const [kycDismissed, setKycDismissed] = useState(false);
   const [activeCcy, setActiveCcy] = useState('USD');
 
   useEffect(() => {
-    Promise.allSettled([getBalance(), getAll({ limit: 100 }), getStatus()])
-      .then(([balRes, txRes, kycRes]) => {
-        if (balRes.status === 'fulfilled') setBalances(balRes.value);
-        if (txRes.status === 'fulfilled') setTransactions(txRes.value.data);
-        if (kycRes.status === 'fulfilled') setKyc(kycRes.value);
-      })
-      .finally(() => setIsLoading(false));
+    const t = setTimeout(() => setIsLoading(false), 450);
+    return () => clearTimeout(t);
   }, []);
 
-  if (isLoading) return <PageLoader label="Loading dashboard…" />;
+  if (isLoading) {
+    return (
+      <div>
+        <div className="page-header">
+          <div className="page-header__text">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="vault-grid-4" style={{ marginBottom: 24 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="stat-card">
+              <Skeleton className="h-9 w-9" />
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
+        </div>
+        <div className="vault-card" style={{ padding: 22 }}>
+          <Skeleton className="h-6 w-56" />
+          <Skeleton className="h-10 w-40" />
+          <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const totalDeposited = transactions
     .filter((t) => t.type === 'deposit' && t.status === 'completed')
@@ -92,7 +116,7 @@ export default function Dashboard() {
     .filter((t) => (t.type === 'withdrawal' || t.type === 'transfer_out') && t.status === 'completed')
     .reduce((s, t) => s + t.amount, 0);
 
-  const totalBalance = balances.reduce((s, b) => s + b.balance, 0);
+  const totalBalance = totalBalanceUsd;
   const recent = transactions.slice(0, 6);
 
   const today = new Date().toLocaleDateString('en-US', {
@@ -106,9 +130,9 @@ export default function Dashboard() {
         title={`${getGreeting()}, ${displayName}`}
         subtitle={today}
         action={
-          <Link to="/deposit">
-            <Button variant="primary" size="sm">Add funds</Button>
-          </Link>
+          <Button variant="primary" size="sm" onClick={() => openDeposit()}>
+            Add funds
+          </Button>
         }
       />
 
@@ -157,8 +181,8 @@ export default function Dashboard() {
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: 22, marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>Total balance · all currencies</div>
-            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text)' }}>{fmt(totalBalance)}</div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>Total balance · converted to USD</div>
+            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text)' }}>{fmt(totalBalance, 'USD')}</div>
           </div>
           {balances.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', maxWidth: 360 }}>
@@ -185,12 +209,12 @@ export default function Dashboard() {
         {/* Quick actions */}
         <div style={{ display: 'flex', gap: 12 }}>
           {[
-            { icon: Send,        label: 'Send',     desc: 'To anyone in seconds',   href: '/transfer' },
-            { icon: Download,    label: 'Deposit',  desc: 'Card, bank, or crypto',  href: '/deposit' },
-            { icon: Upload,      label: 'Withdraw', desc: 'Out to your bank',       href: '/withdraw' },
-            { icon: ArrowUpDown, label: 'Crypto', desc: 'Deposit or withdraw crypto', href: '/crypto' },
-          ].map(({ icon: Icon, label, desc, href }) => (
-            <button key={label} onClick={() => navigate(href)} className="qa">
+            { icon: Send,        label: 'Send',     desc: 'To anyone in seconds',   action: () => openTransfer(activeCcy) },
+            { icon: Download,    label: 'Deposit',  desc: 'Card, bank, or crypto',  action: () => openDeposit(activeCcy) },
+            { icon: Upload,      label: 'Withdraw', desc: 'Out to your bank',       action: () => openWithdraw(activeCcy) },
+            { icon: ArrowUpDown, label: 'Crypto',   desc: 'Deposit or withdraw crypto', action: () => navigate('/crypto') },
+          ].map(({ icon: Icon, label, desc, action }) => (
+            <button key={label} onClick={action} className="qa" type="button">
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--accent-glow)', color: 'var(--accent)', display: 'grid', placeItems: 'center', border: '1px solid rgba(99,102,241,0.25)', flexShrink: 0 }}>
                 <Icon size={18} />
               </div>
@@ -221,9 +245,9 @@ export default function Dashboard() {
             title="No activity yet"
             description="Make your first deposit or transfer to see transactions here."
             action={
-              <Link to="/deposit">
-                <Button variant="primary" size="sm">Deposit funds</Button>
-              </Link>
+              <Button variant="primary" size="sm" onClick={() => openDeposit()}>
+                Deposit funds
+              </Button>
             }
           />
         ) : (

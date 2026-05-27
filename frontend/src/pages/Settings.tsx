@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import { Check, Shield, ChevronDown } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
+import PhoneInput from '@/components/ui/PhoneInput';
 import { useAuth } from '@/context/AuthContext';
 import UserAvatar from '@/components/UserAvatar';
 import PageHeader from '@/components/ui/PageHeader';
 import { getUserDisplayName } from '@/lib/userDisplay';
-import api from '@/api/axios';
-import { deleteAccount } from '@/api/auth';
-import { getStatus, submit } from '@/api/kyc';
-import type { User as UserType, KYCStatus } from '@/types';
+import type { KYCStatus } from '@/types';
 
 export default function Settings() {
   const { user, setUser, logout } = useAuth();
@@ -53,12 +50,12 @@ export default function Settings() {
   const [deleteSuccess, setDeleteSuccess] = useState(false);
 
   useEffect(() => {
-    // Load KYC status
-    getStatus()
-      .then(setKycStatus)
-      .catch(() => {})
-      .finally(() => setKycLoading(false));
-  }, []);
+    const t = setTimeout(() => {
+      setKycStatus({ status: 'approved', full_name: getUserDisplayName(user), created_at: new Date().toISOString() });
+      setKycLoading(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [user]);
 
   useEffect(() => {
     if (sectionParam === 'kyc') {
@@ -70,79 +67,57 @@ export default function Settings() {
     setActiveSection(prev => prev === section ? null : section);
   }
 
-  async function handleProfileSave(e: FormEvent) {
+  function handleProfileSave(e: FormEvent) {
     e.preventDefault();
     setProfileError(null);
     setProfileSuccess(false);
     setProfileLoading(true);
-    try {
-      const { data } = await api.put<UserType>('/auth/profile', { first_name: firstName, last_name: lastName, phone });
-      setUser(data);
+    setTimeout(() => {
+      setUser({ ...user!, first_name: firstName, last_name: lastName });
       setProfileSuccess(true);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setProfileError((err.response?.data as { message?: string })?.message ?? 'Failed to update profile.');
-      else setProfileError('Something went wrong.');
-    } finally { setProfileLoading(false); }
+      setProfileLoading(false);
+    }, 600);
   }
 
-  async function handlePasswordChange(e: FormEvent) {
+  function handlePasswordChange(e: FormEvent) {
     e.preventDefault();
     if (newPassword !== confirmPassword) { setPasswordError('Passwords do not match.'); return; }
     setPasswordError(null);
     setPasswordSuccess(false);
     setPasswordLoading(true);
-    try {
-      await api.put('/auth/password', { current_password: currentPassword, new_password: newPassword });
+    setTimeout(() => {
       setPasswordSuccess(true);
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setPasswordError((err.response?.data as { message?: string })?.message ?? 'Failed to change password.');
-      else setPasswordError('Something went wrong.');
-    } finally { setPasswordLoading(false); }
+      setPasswordLoading(false);
+    }, 600);
   }
 
-  async function handleKycSubmit(e: FormEvent) {
+  function handleKycSubmit(e: FormEvent) {
     e.preventDefault();
     setKycError(null);
     setKycSubmitting(true);
-    try {
-      const updated = await submit({
-        full_name: fullName,
-        date_of_birth: dob,
-        id_number: idNumber,
-        photo_url: photoUrl || undefined
-      });
-      setKycStatus(updated);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) setKycError((err.response?.data as { message?: string })?.message ?? 'Submission failed.');
-      else setKycError('Something went wrong. Please try again.');
-    } finally { setKycSubmitting(false); }
+    setTimeout(() => {
+      setKycStatus({ status: 'pending', full_name: fullName, created_at: new Date().toISOString() });
+      setKycSubmitting(false);
+    }, 700);
   }
 
   function onDeleteAccountClick() {
     const confirmed = window.confirm('Delete your account? This cannot be undone.');
     if (!confirmed) return;
-    void handleDeleteAccount();
+    handleDeleteAccount();
   }
 
-  async function handleDeleteAccount() {
+  function handleDeleteAccount() {
     setDeleteError(null);
     setDeleteSuccess(false);
     setDeleteLoading(true);
-    try {
-      await deleteAccount();
+    setTimeout(() => {
       setDeleteSuccess(true);
+      setDeleteLoading(false);
       logout();
       navigate('/login');
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setDeleteError((err.response?.data as { message?: string })?.message ?? 'Failed to delete account.');
-      } else {
-        setDeleteError('Something went wrong.');
-      }
-    } finally {
-      setDeleteLoading(false);
-    }
+    }, 600);
   }
 
   const displayName = getUserDisplayName(user);
@@ -204,7 +179,7 @@ export default function Settings() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
                 <label style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-muted)', fontWeight: 500 }}>Phone</label>
-                <input className="vault-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
+                <PhoneInput value={phone} onChange={setPhone} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button type="submit" disabled={profileLoading}

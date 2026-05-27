@@ -6,14 +6,15 @@ interface AuthLayoutProps {
   subtitle: string;
   children: ReactNode;
   footer?: ReactNode;
+  showLogo?: boolean;
 }
 
-export default function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+export default function AuthLayout({ title, subtitle, children, footer, showLogo = true }: AuthLayoutProps) {
   return (
     <div className="auth-shell">
       <div className="auth-shell__inner">
         <Link to="/" className="auth-shell__brand">
-          <span className="auth-shell__logo" aria-hidden />
+          {showLogo && <span className="auth-shell__logo" aria-hidden />}
           eWallet
         </Link>
         <div className="auth-shell__intro">

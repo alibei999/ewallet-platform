@@ -1,4 +1,4 @@
-export const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'] as const;
+export const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB', 'GBP'] as const;
 export type CurrencyCode = (typeof CURRENCIES)[number];
 
 export const CURRENCY_SYMBOL: Record<string, string> = {
@@ -6,6 +6,15 @@ export const CURRENCY_SYMBOL: Record<string, string> = {
   USD: '$',
   EUR: '€',
   RUB: '₽',
+  GBP: '£',
+};
+
+export const CURRENCY_NAME: Record<string, string> = {
+  KZT: 'Kazakhstani Tenge',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  RUB: 'Russian Ruble',
+  GBP: 'British Pound',
 };
 
 export const QUICK_AMOUNTS: Record<string, number[]> = {
@@ -13,6 +22,7 @@ export const QUICK_AMOUNTS: Record<string, number[]> = {
   USD: [100, 500, 1000, 5000],
   EUR: [100, 500, 1000, 5000],
   RUB: [5000, 10000, 50000, 100000],
+  GBP: [50, 100, 500, 1000],
 };
 
 export function currencySymbol(currency: string): string {

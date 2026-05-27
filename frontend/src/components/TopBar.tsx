@@ -3,9 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 const PAGE_META: Record<string, { section?: string; title: string }> = {
   '/dashboard': { title: 'Dashboard' },
   '/wallet': { title: 'Wallet' },
-  '/transfer': { title: 'Transfer' },
-  '/deposit': { title: 'Deposit' },
-  '/withdraw': { title: 'Withdraw' },
   '/transactions': { title: 'Transactions' },
   '/crypto': { section: 'Assets', title: 'Crypto' },
   '/merchant': { section: 'Business', title: 'Merchant' },

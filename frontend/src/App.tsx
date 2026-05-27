@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
+import { AppDataProvider } from '@/context/AppDataContext';
+import { ToastProvider } from '@/context/ToastContext';
+import { ActionModalProvider } from '@/context/ActionModalContext';
+import ToastViewport from '@/components/ui/ToastViewport';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import RoleRoute from '@/components/RoleRoute';
 import Layout from '@/components/Layout';
@@ -12,8 +16,6 @@ import NotFound from '@/pages/NotFound';
 import Dashboard from '@/pages/Dashboard';
 import Wallet from '@/pages/Wallet';
 import Transfer from '@/pages/Transfer';
-import Deposit from '@/pages/Deposit';
-import Withdraw from '@/pages/Withdraw';
 import Transactions from '@/pages/Transactions';
 import TransactionDetail from '@/pages/TransactionDetail';
 import Merchant from '@/pages/Merchant';
@@ -36,7 +38,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
+        <AppDataProvider>
+          <ToastProvider>
+            <ActionModalProvider>
+              <Routes>
           {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
@@ -46,8 +51,8 @@ export default function App() {
           <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
           <Route path="/wallet" element={<AppLayout><Wallet /></AppLayout>} />
           <Route path="/transfer" element={<AppLayout><Transfer /></AppLayout>} />
-          <Route path="/deposit" element={<AppLayout><Deposit /></AppLayout>} />
-          <Route path="/withdraw" element={<AppLayout><Withdraw /></AppLayout>} />
+          <Route path="/deposit" element={<Navigate to="/wallet" replace />} />
+          <Route path="/withdraw" element={<Navigate to="/wallet" replace />} />
           <Route path="/transactions" element={<AppLayout><Transactions /></AppLayout>} />
           <Route path="/transactions/:id" element={<AppLayout><TransactionDetail /></AppLayout>} />
           <Route path="/merchant" element={<AppLayout><Merchant /></AppLayout>} />
@@ -83,7 +88,11 @@ export default function App() {
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
-        </Routes>
+              </Routes>
+              <ToastViewport />
+            </ActionModalProvider>
+          </ToastProvider>
+        </AppDataProvider>
       </AuthProvider>
     </BrowserRouter>
   );
