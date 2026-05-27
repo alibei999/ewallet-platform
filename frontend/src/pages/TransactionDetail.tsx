@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import PageLoader from '@/components/ui/PageLoader';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import ErrorMessage from '@/components/ErrorMessage';
-import { getById } from '@/api/transactions';
+import { useAppData } from '@/context/AppDataContext';
 import type { Transaction } from '@/types';
 
 const TYPE_LABELS: Record<Transaction['type'], string> = {
@@ -50,28 +48,18 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 export default function TransactionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { transactions } = useAppData();
 
-  useEffect(() => {
-    if (!id) return;
-    getById(Number(id))
-      .then(setTransaction)
-      .catch(() => setError('Transaction not found.'))
-      .finally(() => setIsLoading(false));
-  }, [id]);
+  const transaction: Transaction | null = transactions.find((t) => t.id === Number(id)) ?? null;
 
-  if (isLoading) return <PageLoader label="Loading transaction…" />;
-
-  if (error || !transaction) {
+  if (!transaction) {
     return (
       <div style={{ maxWidth: 520, margin: '0 auto' }}>
         <Link to="/transactions" className="vault-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20, fontSize: 13 }}>
           <ArrowLeft size={14} />
           Back to transactions
         </Link>
-        <ErrorMessage message={error ?? 'Transaction not found.'} />
+        <ErrorMessage message="Transaction not found." />
       </div>
     );
   }

@@ -28,7 +28,7 @@ export default function Login() {
     setIsLoading(true);
     try {
       const data = await loginApi({ email, password });
-      login(data.token, data.refresh_token, data.user);
+      login(data.access_token, data.refresh_token, data.user);
       navigate('/dashboard');
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {

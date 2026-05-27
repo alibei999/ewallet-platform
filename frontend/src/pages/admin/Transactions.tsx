@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import api from '@/api/axios';
 import type { Transaction } from '@/types';
+import { useAppData } from '@/context/AppDataContext';
 
 const TYPE_BADGE: Record<string, string> = {
   deposit: 'badge badge-deposit',
@@ -26,7 +25,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 const TRANSACTION_TYPES: Transaction['type'][] = ['deposit', 'withdrawal', 'transfer_in', 'transfer_out', 'payment', 'refund'];
 const TRANSACTION_STATUSES: Transaction['status'][] = ['completed', 'pending', 'failed', 'cancelled'];
-const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB'];
+const CURRENCIES = ['KZT', 'USD', 'EUR', 'RUB', 'GBP'];
 
 function fmtNum(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,25 +44,18 @@ function FilterSelect({ label, value, options, onChange }: { label: string; valu
 }
 
 export default function AdminTransactions() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const { transactions } = useAppData();
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currencyFilter, setCurrencyFilter] = useState('');
 
-  useEffect(() => {
-    setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (typeFilter) params.type = typeFilter;
-    if (statusFilter) params.status = statusFilter;
-    if (currencyFilter) params.currency = currencyFilter;
-
-    api.get<{ data: Transaction[]; total: number }>('/admin/transactions', { params })
-      .then(({ data }) => { setTransactions(data.data); setTotal(data.total); })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, [typeFilter, statusFilter, currencyFilter]);
+  const filtered = useMemo(() => {
+    let data = [...transactions];
+    if (typeFilter) data = data.filter((t) => t.type === typeFilter);
+    if (statusFilter) data = data.filter((t) => t.status === statusFilter);
+    if (currencyFilter) data = data.filter((t) => t.currency === currencyFilter);
+    return data;
+  }, [transactions, typeFilter, statusFilter, currencyFilter]);
 
   function clearFilters() { setTypeFilter(''); setStatusFilter(''); setCurrencyFilter(''); }
 
@@ -75,7 +67,7 @@ export default function AdminTransactions() {
           <span className="badge badge-failed" style={{ fontSize: 10, letterSpacing: '0.08em' }}>ADMIN</span>
         </div>
         <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>
-          {isLoading ? 'Loading…' : `${total} total transaction${total !== 1 ? 's' : ''}`}
+          {filtered.length} total transaction{filtered.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -94,9 +86,7 @@ export default function AdminTransactions() {
       </div>
 
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
-        {isLoading ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64 }}><LoadingSpinner size="lg" /></div>
-        ) : transactions.length === 0 ? (
+        {filtered.length === 0 ? (
           <p style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)', fontSize: 14 }}>No transactions found</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -107,7 +97,7 @@ export default function AdminTransactions() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => (
+                {filtered.map((tx) => (
                   <tr key={tx.id}>
                     <td className="mono" style={{ fontSize: 12, color: 'var(--text-faint)' }}>#{String(tx.id).padStart(6, '0')}</td>
                     <td><span className={TYPE_BADGE[tx.type] ?? 'badge badge-neutral'}>{TYPE_LABEL[tx.type] ?? tx.type}</span></td>

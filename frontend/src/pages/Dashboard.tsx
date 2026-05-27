@@ -69,7 +69,8 @@ export default function Dashboard() {
   const [kyc] = useState<KYCStatus | null>({ status: 'approved' });
   const [isLoading, setIsLoading] = useState(true);
   const [kycDismissed, setKycDismissed] = useState(false);
-  const [activeCcy, setActiveCcy] = useState('USD');
+  const [activeCcy, setActiveCcy] = useState(() => balances[0]?.currency ?? 'USD');
+  const [hoveredCcy, setHoveredCcy] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setIsLoading(false), 450);
@@ -108,16 +109,21 @@ export default function Dashboard() {
     );
   }
 
-  const totalDeposited = transactions
-    .filter((t) => t.type === 'deposit' && t.status === 'completed')
+  const activeBalance = balances.find((b) => b.currency === activeCcy);
+  const activeCcyBalance = activeBalance?.balance ?? 0;
+  const lockedBalance = activeBalance?.locked_balance ?? 0;
+
+  const activeTxs = transactions.filter((t) => t.currency === activeCcy);
+
+  const totalDeposited = activeTxs
+    .filter((t) => (t.type === 'deposit' || t.type === 'transfer_in') && t.status === 'completed')
     .reduce((s, t) => s + t.amount, 0);
 
-  const totalSpent = transactions
+  const totalSpent = activeTxs
     .filter((t) => (t.type === 'withdrawal' || t.type === 'transfer_out') && t.status === 'completed')
     .reduce((s, t) => s + t.amount, 0);
 
-  const totalBalance = totalBalanceUsd;
-  const recent = transactions.slice(0, 6);
+  const recent = activeTxs.slice(0, 6);
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -171,18 +177,30 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="vault-grid-4" style={{ marginBottom: 24 }}>
-        <StatCard icon={Wallet}   label="Total balance"   value={fmt(totalBalance)} />
-        <StatCard icon={Download} label="Money in"        value={fmt(totalDeposited)} iconColor="var(--success)" />
-        <StatCard icon={Upload}   label="Money out"       value={fmt(totalSpent)}     iconColor="var(--error)" />
-        <StatCard icon={Activity} label="Transactions"    value={String(transactions.length)} />
+        <StatCard icon={Wallet}   label={`${activeCcy} balance`} value={fmt(activeCcyBalance, activeCcy)} />
+        <StatCard icon={Download} label="Money in"               value={fmt(totalDeposited, activeCcy)} iconColor="var(--success)" />
+        <StatCard icon={Upload}   label="Money out"              value={fmt(totalSpent, activeCcy)}     iconColor="var(--error)" />
+        <StatCard icon={Activity} label="Transactions"           value={String(activeTxs.length)} />
       </div>
 
       {/* Balance overview */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: 22, marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>Total balance · converted to USD</div>
-            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text)' }}>{fmt(totalBalance, 'USD')}</div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>
+              {activeCcy} balance · available
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 8, color: 'var(--text)' }}>
+              {fmt(activeCcyBalance, activeCcy)}
+            </div>
+            {lockedBalance > 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
+                {fmt(lockedBalance, activeCcy)} locked
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: lockedBalance > 0 ? 2 : 4 }}>
+              ≈ {fmt(totalBalanceUsd, 'USD')} total across all wallets
+            </div>
           </div>
           {balances.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end', maxWidth: 360 }}>
@@ -190,13 +208,30 @@ export default function Dashboard() {
                 <button
                   key={b.currency}
                   onClick={() => setActiveCcy(b.currency)}
+                  onMouseEnter={() => setHoveredCcy(b.currency)}
+                  onMouseLeave={() => setHoveredCcy(null)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8,
                     padding: '7px 12px', borderRadius: 999,
-                    background: activeCcy === b.currency ? 'var(--accent-glow)' : 'var(--card)',
-                    border: `1px solid ${activeCcy === b.currency ? 'rgba(99,102,241,0.4)' : 'var(--border)'}`,
-                    color: activeCcy === b.currency ? 'white' : 'var(--text)',
+                    background: activeCcy === b.currency
+                      ? 'var(--accent-glow)'
+                      : hoveredCcy === b.currency
+                      ? 'rgba(99,102,241,0.08)'
+                      : 'var(--card)',
+                    border: `1px solid ${
+                      activeCcy === b.currency
+                        ? 'rgba(99,102,241,0.4)'
+                        : hoveredCcy === b.currency
+                        ? 'rgba(99,102,241,0.2)'
+                        : 'var(--border)'
+                    }`,
+                    color: activeCcy === b.currency
+                      ? 'white'
+                      : hoveredCcy === b.currency
+                      ? 'var(--accent)'
+                      : 'var(--text)',
                     fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
                   }}
                 >
                   {b.currency}
@@ -230,7 +265,9 @@ export default function Dashboard() {
       {/* Recent transactions */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px' }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.01em', color: 'var(--text)' }}>Recent transactions</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.01em', color: 'var(--text)' }}>
+            Recent {activeCcy} transactions
+          </h2>
           <Link
             to="/transactions"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
@@ -242,11 +279,11 @@ export default function Dashboard() {
         {recent.length === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No activity yet"
-            description="Make your first deposit or transfer to see transactions here."
+            title={`No ${activeCcy} transactions yet`}
+            description={`Make a deposit or transfer in ${activeCcy} to see activity here.`}
             action={
-              <Button variant="primary" size="sm" onClick={() => openDeposit()}>
-                Deposit funds
+              <Button variant="primary" size="sm" onClick={() => openDeposit(activeCcy)}>
+                Deposit {activeCcy}
               </Button>
             }
           />

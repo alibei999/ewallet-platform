@@ -38,7 +38,7 @@ function StatCard({ icon: Icon, label, value }: { icon: React.ElementType; label
   );
 }
 
-function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange?: (v: string) => void }) {
+function FilterSelect({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange?: (v: string) => void }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--text-faint)', fontWeight: 500 }}>{label}</span>
@@ -48,7 +48,7 @@ function FilterSelect({ label, value, options, onChange }: { label: string; valu
         onChange={(e) => onChange?.(e.target.value)}
         style={{ height: 36, fontSize: 13, padding: '0 32px 0 12px', minWidth: 140, backgroundImage: 'linear-gradient(45deg, transparent 50%, #737373 50%), linear-gradient(135deg, #737373 50%, transparent 50%)', backgroundPosition: 'calc(100% - 16px) center, calc(100% - 11px) center', backgroundSize: '5px 5px, 5px 5px', backgroundRepeat: 'no-repeat' }}
       >
-        {options.map((o) => <option key={o}>{o}</option>)}
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
   );
@@ -175,10 +175,30 @@ export default function Transactions() {
       {/* Filters */}
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius-card)', padding: 22, marginBottom: 24 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <FilterSelect label="Type" value={filters.type ?? ''} options={['', 'deposit', 'withdrawal', 'transfer_in', 'transfer_out']} onChange={(v) => updateFilter('type', v as Transaction['type'] | undefined)} />
-          <FilterSelect label="Status" value={filters.status ?? ''} options={['', 'completed', 'pending', 'failed', 'cancelled']} onChange={(v) => updateFilter('status', v as Transaction['status'] | undefined)} />
-          <FilterSelect label="Currency" value={filters.currency ?? ''} options={['', ...CURRENCIES]} onChange={(v) => updateFilter('currency', v || undefined)} />
-          <FilterSelect label="Sort" value={sortBy} options={['newest', 'oldest', 'amount_desc', 'amount_asc']} onChange={(v) => setSortBy(v)} />
+          <FilterSelect label="Type" value={filters.type ?? ''} options={[
+            { value: '', label: 'All types' },
+            { value: 'deposit', label: 'Deposit' },
+            { value: 'withdrawal', label: 'Withdrawal' },
+            { value: 'transfer_in', label: 'Transfer in' },
+            { value: 'transfer_out', label: 'Transfer out' },
+          ]} onChange={(v) => updateFilter('type', v as Transaction['type'] | undefined)} />
+          <FilterSelect label="Status" value={filters.status ?? ''} options={[
+            { value: '', label: 'All statuses' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'failed', label: 'Failed' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]} onChange={(v) => updateFilter('status', v as Transaction['status'] | undefined)} />
+          <FilterSelect label="Currency" value={filters.currency ?? ''} options={[
+            { value: '', label: 'All currencies' },
+            ...CURRENCIES.map((c) => ({ value: c, label: c })),
+          ]} onChange={(v) => updateFilter('currency', v || undefined)} />
+          <FilterSelect label="Sort" value={sortBy} options={[
+            { value: 'newest', label: 'Newest first' },
+            { value: 'oldest', label: 'Oldest first' },
+            { value: 'amount_desc', label: 'Highest amount' },
+            { value: 'amount_asc', label: 'Lowest amount' },
+          ]} onChange={(v) => setSortBy(v)} />
           <div style={{ flex: 1 }} />
           <button onClick={() => { setFilters({}); setPage(1); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 10, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
             <RefreshCw size={13} /> Clear
