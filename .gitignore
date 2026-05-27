@@ -22,3 +22,5 @@ Thumbs.db
 
 # Deploy tooling (local link metadata)
 .vercel/
+
+prompts.txt
